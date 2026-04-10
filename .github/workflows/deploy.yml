@@ -38,13 +38,13 @@ jobs:
             cd "$DEPLOY_DIR"
 
             # Ensure the remote URL is correct and authenticated
-            git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/derickmhidze7/GILGAL-POLYCLINIC.git
+            git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/derick328/GILGAL-POLYCLINIC.git
 
             # Pull latest code from main
             git pull origin main
 
             # Strip the token from the remote URL for safety
-            git remote set-url origin https://github.com/derickmhidze7/GILGAL-POLYCLINIC.git
+            git remote set-url origin https://github.com/derick328/GILGAL-POLYCLINIC.git
 
             # NOTE: hospital/.env is managed manually on the server — never overwritten by CI.
             # To update credentials, SSH in and edit ~/GILGAL-POLYCLINIC/hospital/.env directly.
