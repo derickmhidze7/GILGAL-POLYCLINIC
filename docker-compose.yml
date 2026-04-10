@@ -1,0 +1,42 @@
+name: gilgal
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: gilgal_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - gilgal_postgres_data:/var/lib/postgresql/data
+    networks:
+      - infra-network
+    env_file:
+      - hospital/.env
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gilgal_app
+    depends_on:
+      - postgres
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - infra-network
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_FLYWAY_ENABLED: "false"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    env_file:
+      - hospital/.env
+
+volumes:
+  gilgal_postgres_data:
+
+networks:
+  infra-network:
+    driver: bridge

@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{receptionist/fragments :: head('Billing')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{receptionist/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{receptionist/fragments :: topbar('Billing')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{receptionist/fragments :: alerts}"></th:block>
+
+            <!-- Header row -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="fw-semibold mb-0">
+                    <i class="bi bi-receipt-cutoff me-2 text-success"></i>Invoices
+                </h5>
+                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createInvoiceModal">
+                    <i class="bi bi-plus-circle me-2"></i>Create Invoice
+                </button>
+            </div>
+
+            <!-- Search + Tabs card -->
+            <div class="card border-0 shadow-sm">
+
+                <!-- Search bar -->
+                <div class="card-header bg-white border-bottom-0 pt-3 pb-0 px-3">
+                    <div class="input-group mb-3" style="max-width:340px;">
+                        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="invoiceSearch" class="form-control border-start-0"
+                               placeholder="Search patient name..." oninput="filterInvoices()">
+                        <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()" title="Clear">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+
+                    <!-- Nav tabs -->
+                    <ul class="nav nav-tabs border-bottom-0" id="billingTabs">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-tab="all" onclick="switchTab('all',this)">
+                                All <span class="badge bg-secondary ms-1" id="cnt-all">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-tab="consultation" onclick="switchTab('consultation',this)">
+                                <i class="bi bi-stethoscope me-1"></i>Consultation
+                                <span class="badge bg-primary ms-1" id="cnt-consultation">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-tab="pharmacy" onclick="switchTab('pharmacy',this)">
+                                <i class="bi bi-capsule me-1"></i>Prescription
+                                <span class="badge bg-success ms-1" id="cnt-pharmacy">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-tab="lab" onclick="switchTab('lab',this)">
+                                <i class="bi bi-eyedropper me-1"></i>Lab Requests
+                                <span class="badge bg-warning text-dark ms-1" id="cnt-lab">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-tab="procedure" onclick="switchTab('procedure',this)">
+                                <i class="bi bi-scissors me-1"></i>Surgery
+                                <span class="badge bg-danger ms-1" id="cnt-procedure">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-tab="bed" onclick="switchTab('bed',this)">
+                                <i class="bi bi-hospital me-1"></i>Ward
+                                <span class="badge bg-info text-dark ms-1" id="cnt-bed">0</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Invoices Table -->
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="invoicesTable">
+                            <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Invoice #</th>
+                                <th>Patient</th>
+                                <th>Categories</th>
+                                <th>Date</th>
+                                <th>Due Date</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody id="invoiceRows">
+                            <tr th:each="inv : ${invoices}"
+                                th:with="cats=${inv.lineItems.![category.name()]}"
+                                th:attr="data-patient=${(inv.patient.firstName + ' ' + inv.patient.lastName).toLowerCase()},
+                                         data-cat-consultation=${#lists.contains(cats,'CONSULTATION')},
+                                         data-cat-lab=${#lists.contains(cats,'LAB')},
+                                         data-cat-pharmacy=${#lists.contains(cats,'PHARMACY')},
+                                         data-cat-procedure=${#lists.contains(cats,'PROCEDURE')},
+                                         data-cat-bed=${#lists.contains(cats,'BED')}">
+
+                                <td class="ps-3 fw-semibold" th:text="${inv.invoiceNumber}">—</td>
+
+                                <td>
+                                    <a th:href="@{/receptionist/patients/{id}(id=${inv.patient.id})}"
+                                       class="text-decoration-none fw-medium"
+                                       th:text="${inv.patient.firstName + ' ' + inv.patient.lastName}">—</a>
+                                </td>
+
+                                <!-- Category chips -->
+                                <td>
+                                    <span th:if="${#lists.contains(cats,'CONSULTATION')}"
+                                          class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle me-1">
+                                        Consultation
+                                    </span>
+                                    <span th:if="${#lists.contains(cats,'PHARMACY')}"
+                                          class="badge rounded-pill bg-success-subtle text-success border border-success-subtle me-1">
+                                        Prescription
+                                    </span>
+                                    <span th:if="${#lists.contains(cats,'LAB')}"
+                                          class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle me-1">
+                                        Lab
+                                    </span>
+                                    <span th:if="${#lists.contains(cats,'PROCEDURE')}"
+                                          class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle me-1">
+                                        Surgery
+                                    </span>
+                                    <span th:if="${#lists.contains(cats,'BED')}"
+                                          class="badge rounded-pill bg-info-subtle text-info-emphasis border border-info-subtle me-1">
+                                        Ward
+                                    </span>
+                                    <span th:if="${inv.lineItems.isEmpty()}"
+                                          class="text-muted small">—</span>
+                                </td>
+
+                                <td th:text="${inv.invoiceDate != null ? #temporals.format(inv.invoiceDate, 'dd MMM yyyy') : '—'}">—</td>
+                                <td th:text="${inv.dueDate != null ? #temporals.format(inv.dueDate, 'dd MMM yyyy') : '—'}">—</td>
+                                <td>
+                                    <div th:text="${inv.totalAmount != null ? #numbers.formatDecimal(inv.totalAmount, 1, 'COMMA', 2, 'POINT') + '/=' : '0.00'}">—</div>
+                                    <div th:with="outstanding=${outstandingMap[inv.id]}"
+                                         th:if="${outstanding != null and outstanding.compareTo(T(java.math.BigDecimal).ZERO) > 0}"
+                                         class="text-warning small fw-semibold">
+                                        Bal: <span th:text="${#numbers.formatDecimal(outstanding, 1, 'COMMA', 2, 'POINT') + '/='}"></span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span th:classappend="${inv.status.name() == 'PAID'} ? 'badge bg-success' :
+                                                          (${inv.status.name() == 'ISSUED'} ? 'badge bg-primary' :
+                                                          (${inv.status.name() == 'VOIDED'} ? 'badge bg-danger' :
+                                                          (${inv.status.name() == 'PARTIALLY_PAID'} ? 'badge bg-warning text-dark' :
+                                                          (${inv.status.name() == 'CANCELLATION_PENDING'} ? 'badge bg-orange text-white' :
+                                                          (${inv.status.name() == 'TERMINATED'} ? 'badge bg-dark' : 'badge bg-secondary')))))"
+                                          th:text="${inv.status}">—</span>
+                                </td>
+                                <td class="d-flex gap-1 align-items-center flex-wrap">
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            th:attr="data-inv-id=${inv.id}, data-inv-number=${inv.invoiceNumber}, data-patient=${inv.patient.firstName + (inv.patient.middleName != null ? ' ' + inv.patient.middleName : '') + ' ' + inv.patient.lastName}"
+                                            onclick="showLineItems(this)"
+                                            data-bs-toggle="modal" data-bs-target="#lineItemsModal">
+                                        <i class="bi bi-eye me-1"></i>Items
+                                    </button>
+                                    <button th:unless="${inv.status.name() == 'PAID'
+                                                     || inv.status.name() == 'VOIDED'
+                                                     || inv.status.name() == 'CANCELLATION_PENDING'
+                                                     || inv.status.name() == 'TERMINATED'}"
+                                            class="btn btn-sm btn-outline-success"
+                                            data-bs-toggle="modal" data-bs-target="#paymentModal"
+                                            th:data-invoice-id="${inv.id}"
+                                            th:data-invoice-number="${inv.invoiceNumber}"
+                                            th:data-total="${inv.totalAmount}"
+                                            th:data-outstanding="${outstandingMap[inv.id]}"
+                                            onclick="preparePayment(this)">
+                                        <i class="bi bi-credit-card me-1"></i>Record Payment
+                                    </button>
+                                    <!-- Cancel Invoice button: only for ISSUED or PAID -->
+                                    <button th:if="${inv.status.name() == 'ISSUED' || inv.status.name() == 'PAID'}"
+                                            class="btn btn-sm btn-outline-danger"
+                                            data-bs-toggle="modal" data-bs-target="#cancelInvoiceModal"
+                                            th:data-invoice-id="${inv.id}"
+                                            th:data-invoice-number="${inv.invoiceNumber}"
+                                            onclick="prepareCancellation(this)">
+                                        <i class="bi bi-x-circle me-1"></i>Cancel Invoice
+                                    </button>
+                                    <span th:if="${inv.status.name() == 'PAID'}" class="text-success small">
+                                        <i class="bi bi-check-circle me-1"></i>Settled
+                                    </span>
+                                    <span th:if="${inv.status.name() == 'CANCELLATION_PENDING'}" class="text-warning small">
+                                        <i class="bi bi-hourglass-split me-1"></i>Pending Approval
+                                    </span>
+                                    <span th:if="${inv.status.name() == 'TERMINATED'}" class="text-secondary small">
+                                        <i class="bi bi-slash-circle me-1"></i>Terminated
+                                    </span>
+                                    <!-- Remove button: only for VOIDED invoices -->
+                                    <button th:if="${inv.status.name() == 'VOIDED'}"
+                                            class="btn btn-sm btn-danger"
+                                            th:data-invoice-id="${inv.id}"
+                                            th:data-invoice-number="${inv.invoiceNumber}"
+                                            onclick="prepareDelete(this)"
+                                            data-bs-toggle="modal" data-bs-target="#deleteInvoiceModal">
+                                        <i class="bi bi-trash me-1"></i>Remove
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- Empty state (server-side: no invoices at all) -->
+                            <tr th:if="${#lists.isEmpty(invoices)}" id="serverEmptyRow">
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-receipt fs-3 d-block mb-2 opacity-50"></i>No invoices found.
+                                </td>
+                            </tr>
+                            </tbody>
+                            <!-- JS-driven empty state (hidden by default) -->
+                            <tfoot>
+                            <tr id="noResultsRow" style="display:none;">
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-search fs-3 d-block mb-2 opacity-50"></i>
+                                    No invoices match your search or filter.
+                                </td>
+                            </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+                <!-- Pagination bar -->
+                <div th:if="${totalPages > 1}"
+                     class="card-footer bg-white d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 px-3">
+                    <small class="text-muted">
+                        Page <span th:text="${currentPage + 1}"></span> of <span th:text="${totalPages}"></span>
+                        &mdash; <span th:text="${totalInvoiceCount}"></span> invoice<span th:if="${totalInvoiceCount != 1}">s</span> total
+                    </small>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                                <a class="page-link" th:href="@{/receptionist/billing(page=${currentPage - 1})}">&#8249;</a>
+                            </li>
+                            <th:block th:with="start=${T(java.lang.Math).max(0, currentPage - 2)}, end=${T(java.lang.Math).min(totalPages - 1, start + 4)}">
+                                <li class="page-item" th:each="i : ${#numbers.sequence(start, end)}"
+                                    th:classappend="${i == currentPage} ? 'active'">
+                                    <a class="page-link" th:href="@{/receptionist/billing(page=${i})}" th:text="${i + 1}">1</a>
+                                </li>
+                            </th:block>
+                            <li class="page-item" th:classappend="${currentPage >= totalPages - 1} ? 'disabled'">
+                                <a class="page-link" th:href="@{/receptionist/billing(page=${currentPage + 1})}">&#8250;</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Hidden line-item templates (one per invoice, not rendered) -->
+<th:block th:each="inv : ${invoices}">
+    <template th:id="'tmpl-items-' + ${inv.id}">
+        <tr th:each="item : ${inv.lineItems}">
+            <td class="ps-3" th:text="${item.description}">—</td>
+            <td>
+                <span th:with="cat=${item.category.name()}"
+                      th:class="${cat == 'CONSULTATION'} ? 'badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle' :
+                               (${cat == 'PHARMACY'} ? 'badge rounded-pill bg-success-subtle text-success border border-success-subtle' :
+                               (${cat == 'LAB'} ? 'badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle' :
+                               (${cat == 'PROCEDURE'} ? 'badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle' :
+                               (${cat == 'BED'} ? 'badge rounded-pill bg-info-subtle text-info-emphasis border border-info-subtle' : 'badge bg-secondary'))))"
+                      th:text="${cat == 'CONSULTATION'} ? 'Consultation' : (${cat == 'PHARMACY'} ? 'Prescription' : (${cat == 'LAB'} ? 'Lab' : (${cat == 'PROCEDURE'} ? 'Surgery' : (${cat == 'BED'} ? 'Ward' : ${cat}))))">—</span>
+            </td>
+            <td class="text-center" th:text="${item.quantity}">—</td>
+            <td class="text-end" th:text="${#numbers.formatDecimal(item.unitPrice, 1, 'COMMA', 2, 'POINT')}">—</td>
+            <td class="fw-semibold text-end pe-3" th:text="${#numbers.formatDecimal(item.lineTotal, 1, 'COMMA', 2, 'POINT')}">—</td>
+        </tr>
+        <tr th:if="${inv.lineItems.isEmpty()}">
+            <td colspan="5" class="text-center text-muted small py-3">
+                <i class="bi bi-cart d-block mb-1 opacity-50 fs-5"></i>No items on this invoice.
+            </td>
+        </tr>
+    </template>
+</th:block>
+
+<!-- Create Invoice Modal -->
+<div class="modal fade" id="createInvoiceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-receipt me-2"></i>Create Invoice</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="@{/receptionist/billing}" method="post" id="createInvoiceForm">
+                <div class="modal-body">
+
+                    <!-- Patient + dates row -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Patient <span class="text-danger">*</span></label>
+                            <select class="form-select" name="patientId" required>
+                                <option value="">Select patient&hellip;</option>
+                                <option th:each="p : ${patients}"
+                                        th:value="${p.id}"
+                                        th:text="${p.firstName + ' ' + p.lastName + (p.nationalId != null ? ' · ' + p.nationalId : '')}"></option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Due Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="dueDate" required/>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" name="notes" rows="2"
+                                  placeholder="Optional invoice notes&hellip;"></textarea>
+                    </div>
+
+                    <hr class="my-3"/>
+
+                    <!-- Price catalogue item search -->
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">
+                            <i class="bi bi-tag me-1 text-primary"></i>Add Items from Price Catalogue
+                        </label>
+                        <div class="position-relative">
+                            <div class="input-group">
+                                <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" id="catalogueSearch" class="form-control"
+                                       placeholder="Search by name, e.g. Panadol, Blood count, X-Ray&hellip;"
+                                       autocomplete="off">
+                            </div>
+                            <div id="catalogueDropdown"
+                                 class="list-group shadow border-0 mt-1"
+                                 style="display:none; position:absolute; width:100%; z-index:1060; max-height:220px; overflow-y:auto;">
+                            </div>
+                        </div>
+                        <div class="form-text text-muted">Type at least 2 characters to search the price catalogue.</div>
+                    </div>
+
+                    <!-- Line items table -->
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm table-bordered align-middle mb-1" id="lineItemsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Description</th>
+                                    <th style="width:110px">Type</th>
+                                    <th style="width:70px">Qty</th>
+                                    <th style="width:110px">Unit Price</th>
+                                    <th style="width:110px">Line Total</th>
+                                    <th style="width:38px"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="lineItemRows">
+                                <tr id="noItemsRow">
+                                    <td colspan="6" class="text-center text-muted small py-3">
+                                        <i class="bi bi-cart d-block mb-1 opacity-50 fs-5"></i>
+                                        No items added yet. Search above to add.
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr id="invoiceTotalRow" style="display:none;" class="table-success">
+                                    <td colspan="4" class="text-end fw-semibold ps-2">Grand Total:</td>
+                                    <td class="fw-bold text-success fs-6" id="invoiceGrandTotal">0.00</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-receipt me-2"></i>Create &amp; Issue
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Voided Invoice Modal -->
+<div class="modal fade" id="deleteInvoiceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-trash me-2"></i>Remove Voided Invoice</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="deleteInvoiceForm" method="post">
+                <div class="modal-body">
+                    <p class="mb-1">You are about to permanently remove invoice</p>
+                    <p class="fw-bold fs-6" id="deleteInvoiceNumberLabel"></p>
+                    <div class="alert alert-warning d-flex gap-2 align-items-center mt-2 mb-0">
+                        <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+                        <span>This action cannot be undone. The invoice and all its line items will be deleted.</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash me-1"></i>Yes, Remove
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Cancel Invoice Modal -->
+<div class="modal fade" id="cancelInvoiceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-x-circle me-2"></i>Request Invoice Cancellation</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="cancelInvoiceForm" method="post">
+                <div class="modal-body">
+                    <p class="text-muted mb-3">
+                        You are requesting cancellation of invoice
+                        <strong id="cancelInvoiceNumberLabel"></strong>.
+                        This will require admin approval before the invoice is voided.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            Reason for Cancellation <span class="text-danger">*</span>
+                        </label>
+                        <textarea id="cancelReason" class="form-control" name="reason" rows="4"
+                                  placeholder="Please describe why this invoice should be cancelled..."
+                                  minlength="10" required></textarea>
+                        <div class="form-text text-muted">Minimum 10 characters required.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Back</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-send me-2"></i>Submit Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Record Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-credit-card me-2"></i>Record Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="paymentForm" method="post">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Invoice</label>
+                        <input type="text" class="form-control" id="paymentInvoiceLabel" readonly/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Outstanding Total</label>
+                        <input type="text" class="form-control" id="paymentTotalLabel" readonly/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Amount Paid</label>
+                        <input type="text" class="form-control fw-semibold" id="paymentAmountDisplay" readonly/>
+                        <input type="hidden" name="amount" id="paymentAmountHidden"/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Method <span class="text-danger">*</span></label>
+                        <select class="form-select" name="paymentMethod" required>
+                            <option th:each="pm : ${paymentMethods}" th:value="${pm}" th:text="${pm}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reference Number</label>
+                        <input type="text" class="form-control" name="reference"
+                               placeholder="Transaction or receipt reference..."/>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle me-2"></i>Record Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- View Line Items Modal -->
+<div class="modal fade" id="lineItemsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0">
+                        <i class="bi bi-list-ul me-2 text-primary"></i>Invoice Items &mdash;
+                        <span id="lineItemsInvNumber" class="fw-bold"></span>
+                    </h5>
+                    <small class="text-muted" id="lineItemsPatient"></small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Description</th>
+                                <th style="width:130px">Type</th>
+                                <th style="width:60px" class="text-center">Qty</th>
+                                <th style="width:120px" class="text-end">Unit Price</th>
+                                <th style="width:120px" class="text-end pe-3">Line Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lineItemsBody"></tbody>
+                        <tfoot>
+                            <tr class="table-success">
+                                <td colspan="4" class="text-end fw-semibold ps-3">Grand Total:</td>
+                                <td class="fw-bold text-success text-end pe-3" id="lineItemsGrandTotal">0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{receptionist/fragments :: scripts}"></th:block>
+<style>
+    .bg-orange { background-color: #fd7e14 !important; }
+</style>
+<script th:inline="javascript">
+    // -- View Line Items modal ------------------------------------------------
+    function showLineItems(btn) {
+        const invId  = btn.getAttribute('data-inv-id');
+        const invNum = btn.getAttribute('data-inv-number');
+        const patient = btn.getAttribute('data-patient');
+
+        document.getElementById('lineItemsInvNumber').textContent = invNum;
+        document.getElementById('lineItemsPatient').textContent   = patient;
+
+        const tbody = document.getElementById('lineItemsBody');
+        tbody.innerHTML = '';
+
+        const tmpl = document.getElementById('tmpl-items-' + invId);
+        if (tmpl) {
+            tbody.appendChild(tmpl.content.cloneNode(true));
+        }
+
+        // Compute grand total from rendered line-total cells
+        let total = 0;
+        tbody.querySelectorAll('tr').forEach(tr => {
+            const cells = tr.querySelectorAll('td');
+            if (cells.length === 5) {
+                const val = parseFloat((cells[4].textContent || '').replace(/,/g, ''));
+                if (!isNaN(val)) total += val;
+            }
+        });
+        document.getElementById('lineItemsGrandTotal').textContent =
+            total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    const cancelBase = /*[[@{/receptionist/billing/}]]*/ '/receptionist/billing/';
+
+    // -- Delete Voided Invoice modal ------------------------------------------
+    function prepareDelete(btn) {
+        const id  = btn.getAttribute('data-invoice-id');
+        const num = btn.getAttribute('data-invoice-number');
+        document.getElementById('deleteInvoiceNumberLabel').textContent = num;
+        document.getElementById('deleteInvoiceForm').action = cancelBase + id + '/delete';
+    }
+
+    // -- Cancel Invoice modal -------------------------------------------------
+    function prepareCancellation(btn) {
+        const id  = btn.getAttribute('data-invoice-id');
+        const num = btn.getAttribute('data-invoice-number');
+        document.getElementById('cancelInvoiceNumberLabel').textContent = num;
+        document.getElementById('cancelInvoiceForm').action = cancelBase + id + '/cancel';
+        document.getElementById('cancelReason').value = '';
+    }
+
+    const payBase = /*[[@{/receptionist/billing/}]]*/ '/receptionist/billing/';
+
+    // -- State ----------------------------------------------------------------
+    let activeTab = 'all';
+
+    // -- Payment modal --------------------------------------------------------
+    function preparePayment(btn) {
+        const id          = btn.getAttribute('data-invoice-id');
+        const num         = btn.getAttribute('data-invoice-number');
+        const total       = btn.getAttribute('data-total');
+        const outstanding = btn.getAttribute('data-outstanding');
+        // Pre-fill with outstanding balance when available, otherwise full total
+        const rawAmt  = (outstanding && parseFloat(outstanding) > 0) ? parseFloat(outstanding) : (total ? parseFloat(total) : 0);
+        const totalAmt = total ? parseFloat(total) : 0;
+        document.getElementById('paymentInvoiceLabel').value  = num;
+        document.getElementById('paymentTotalLabel').value    = totalAmt ? totalAmt.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '/=' : 'N/A';
+        document.getElementById('paymentAmountDisplay').value = rawAmt ? rawAmt.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '/=' : '0.00';
+        document.getElementById('paymentAmountHidden').value  = rawAmt.toFixed(2);
+        document.getElementById('paymentForm').action         = payBase + id + '/payment';
+    }
+
+    // -- Tab switch -----------------------------------------------------------
+    function switchTab(tab, btn) {
+        activeTab = tab;
+        document.querySelectorAll('#billingTabs .nav-link').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        filterInvoices();
+    }
+
+    // -- Search clear ---------------------------------------------------------
+    function clearSearch() {
+        document.getElementById('invoiceSearch').value = '';
+        filterInvoices();
+    }
+
+    // -- Main filter function -------------------------------------------------
+    function filterInvoices() {
+        const q    = document.getElementById('invoiceSearch').value.trim().toLowerCase();
+        const rows = document.querySelectorAll('#invoiceRows tr[data-patient]');
+
+        // Reset counts
+        const counts = { all: 0, consultation: 0, lab: 0, pharmacy: 0, procedure: 0, bed: 0 };
+
+        rows.forEach(row => {
+            const patient    = (row.dataset.patient || '');
+            const matchesQ   = !q || patient.includes(q);
+
+            const hasCons    = row.dataset.catConsultation === 'true';
+            const hasLab     = row.dataset.catLab          === 'true';
+            const hasPharma  = row.dataset.catPharmacy     === 'true';
+            const hasProc    = row.dataset.catProcedure    === 'true';
+            const hasBed     = row.dataset.catBed          === 'true';
+
+            const matchesTab =
+                activeTab === 'all'          ||
+                (activeTab === 'consultation' && hasCons)   ||
+                (activeTab === 'lab'          && hasLab)    ||
+                (activeTab === 'pharmacy'     && hasPharma) ||
+                (activeTab === 'procedure'    && hasProc)   ||
+                (activeTab === 'bed'          && hasBed);
+
+            const visible = matchesQ && matchesTab;
+            row.style.display = visible ? '' : 'none';
+
+            if (visible) {
+                counts.all++;
+                if (hasCons)   counts.consultation++;
+                if (hasLab)    counts.lab++;
+                if (hasPharma) counts.pharmacy++;
+                if (hasProc)   counts.procedure++;
+                if (hasBed)    counts.bed++;
+            }
+        });
+
+        // Update badge counts
+        Object.keys(counts).forEach(key => {
+            const el = document.getElementById('cnt-' + key);
+            if (el) el.textContent = counts[key];
+        });
+
+        // Show/hide no-results row
+        const visibleCount = activeTab === 'all' ? counts.all : counts[activeTab] || 0;
+        document.getElementById('noResultsRow').style.display =
+            (rows.length > 0 && visibleCount === 0) ? '' : 'none';
+    }
+
+    // -- Init on page load ----------------------------------------------------
+    document.addEventListener('DOMContentLoaded', filterInvoices);
+</script>
+<script>
+(function () {
+    const searchInput  = document.getElementById('catalogueSearch');
+    const dropdown     = document.getElementById('catalogueDropdown');
+    const lineItemRows = document.getElementById('lineItemRows');
+    const noItemsRow   = document.getElementById('noItemsRow');
+    const totalRow     = document.getElementById('invoiceTotalRow');
+    const grandTotalEl = document.getElementById('invoiceGrandTotal');
+
+    if (!searchInput) return;
+
+    let itemData = {};
+    let debounceTimer;
+
+    function typeBadge(type) {
+        const t = (type || '').toUpperCase();
+        if (t === 'PHARMACY')    return 'bg-success';
+        if (t.includes('LAB'))   return 'bg-warning text-dark';
+        if (t.includes('SURG'))  return 'bg-danger';
+        return 'bg-secondary';
+    }
+
+    function fetchCatalogue(q) {
+        fetch('/receptionist/api/price-catalogue/search?q=' + encodeURIComponent(q))
+            .then(r => r.json())
+            .then(data => {
+                if (!data.length) { dropdown.style.display = 'none'; return; }
+                dropdown.innerHTML = data.map(item =>
+                    '<button type="button" class="list-group-item list-group-item-action py-2 px-3 d-flex justify-content-between align-items-center" onclick=\'pickItem(' + JSON.stringify(item).replace(/'/g, "&#39;") + ')\'>' +
+                    '<span><strong class="me-1">' + item.name + '</strong>' +
+                    '<span class="badge ' + typeBadge(item.type) + ' ms-1">' + item.type + '</span>' +
+                    (item.classification ? '<small class="text-muted ms-1">' + item.classification + '</small>' : '') +
+                    '</span><span class="text-success fw-semibold ms-3">' + parseFloat(item.price).toFixed(2) + '</span></button>'
+                ).join('');
+                dropdown.style.display = 'block';
+            })
+            .catch(() => { dropdown.style.display = 'none'; });
+    }
+
+    searchInput.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        const q = searchInput.value.trim();
+        if (q.length < 2) { dropdown.style.display = 'none'; return; }
+        debounceTimer = setTimeout(() => fetchCatalogue(q), 280);
+    });
+
+    document.addEventListener('click', e => {
+        if (!dropdown.contains(e.target) && e.target !== searchInput)
+            dropdown.style.display = 'none';
+    });
+
+    window.pickItem = function(item) {
+        dropdown.style.display = 'none';
+        searchInput.value = '';
+        const idx   = 'r' + Date.now();
+        const price = parseFloat(item.price) || 0;
+        itemData[idx] = { qty: 1, price };
+
+        noItemsRow.style.display = 'none';
+        totalRow.style.display   = '';
+
+        const tr = document.createElement('tr');
+        tr.id = 'irow-' + idx;
+        const hiddenName = item.name.replace(/"/g, '&quot;');
+        tr.innerHTML =
+            '<td>' + item.name +
+            '<input type="hidden" name="itemDesc" value="' + hiddenName + '">' +
+            '<input type="hidden" name="itemType" value="' + item.type + '"></td>' +
+            '<td><span class="badge ' + typeBadge(item.type) + '">' + item.type + '</span></td>' +
+            '<td><input type="number" class="form-control form-control-sm" name="itemQty" value="1" min="1" style="width:60px" onchange="updateRow(\'' + idx + '\',\'qty\',this.value)"></td>' +
+            '<td><input type="number" class="form-control form-control-sm" name="itemPrice" value="' + price.toFixed(2) + '" step="0.01" min="0" style="width:90px" onchange="updateRow(\'' + idx + '\',\'price\',this.value)"></td>' +
+            '<td class="fw-semibold text-end" id="lt-' + idx + '">' + price.toFixed(2) + '</td>' +
+            '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeRow(\'' + idx + '\')"><i class="bi bi-trash3"></i></button></td>';
+        lineItemRows.appendChild(tr);
+        recalcTotal();
+    };
+
+    window.updateRow = function(idx, field, val) {
+        if (!itemData[idx]) return;
+        itemData[idx][field] = parseFloat(val) || 0;
+        const lt = (itemData[idx].qty || 1) * (itemData[idx].price || 0);
+        const ltEl = document.getElementById('lt-' + idx);
+        if (ltEl) ltEl.textContent = lt.toFixed(2);
+        recalcTotal();
+    };
+
+    window.removeRow = function(idx) {
+        const row = document.getElementById('irow-' + idx);
+        if (row) row.remove();
+        delete itemData[idx];
+        const remaining = lineItemRows.querySelectorAll('tr[id^="irow-"]').length;
+        if (remaining === 0) {
+            noItemsRow.style.display = '';
+            totalRow.style.display   = 'none';
+        }
+        recalcTotal();
+    };
+
+    function recalcTotal() {
+        let total = 0;
+        lineItemRows.querySelectorAll('tr[id^="irow-"]').forEach(row => {
+            const ltEl = row.querySelector('td[id^="lt-"]');
+            total += ltEl ? (parseFloat(ltEl.textContent) || 0) : 0;
+        });
+        grandTotalEl.textContent = total.toFixed(2);
+    }
+
+    document.getElementById('createInvoiceModal').addEventListener('hidden.bs.modal', () => {
+        searchInput.value = '';
+        dropdown.style.display = 'none';
+        lineItemRows.querySelectorAll('tr[id^="irow-"]').forEach(r => r.remove());
+        itemData = {};
+        noItemsRow.style.display = '';
+        totalRow.style.display   = 'none';
+        grandTotalEl.textContent = '0.00';
+    });
+})();
+</script>
+</body>
+</html>

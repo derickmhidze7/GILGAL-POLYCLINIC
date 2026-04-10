@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{labtech/fragments :: head('Enter Result')}"></th:block>
+</head>
+<body>
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{labtech/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{labtech/fragments :: topbar('Enter Lab Result')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{labtech/fragments :: alerts}"></th:block>
+
+            <!-- Request Info Card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-info-circle-fill me-2 text-primary"></i>Request Information
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="text-muted small">Patient</label>
+                            <p class="mb-0 fw-semibold"
+                               th:text="${request.patient.firstName + ' ' + request.patient.lastName}"></p>
+                            <small class="text-muted" th:text="${request.patient.nationalId}"></small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="text-muted small">Test</label>
+                            <p class="mb-0 fw-semibold" th:text="${request.testName}"></p>
+                            <small th:if="${request.testCode != null}" class="badge bg-light text-dark"
+                                   th:text="${request.testCode}"></small>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="text-muted small">Urgency</label>
+                            <p class="mb-0">
+                                <span class="badge"
+                                      th:classappend="${request.urgency.name() == 'STAT'} ? 'bg-danger'
+                                                    : (${request.urgency.name() == 'URGENT'} ? 'bg-warning text-dark'
+                                                    : 'bg-secondary')"
+                                      th:text="${request.urgency}"></span>
+                            </p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="text-muted small">Sample Type</label>
+                            <p class="mb-0" th:text="${request.sampleType != null ? request.sampleType : '—'}"></p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="text-muted small">Special Instructions</label>
+                            <p class="mb-0 small"
+                               th:text="${request.specialInstructions != null ? request.specialInstructions : 'None'}"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Locked result notice -->
+            <div th:if="${existingResult != null and existingResult.locked}"
+                 class="alert alert-success mb-4 d-flex flex-column gap-2">
+                <div>
+                    <i class="bi bi-lock-fill me-2"></i>
+                    This result has been submitted and locked. No further edits allowed.
+                </div>
+                <div th:if="${existingResult.reportPdfPath != null}">
+                    <a th:href="@{/labtech/request/{id}/result/pdf(id=${request.id})}"
+                       target="_blank" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>View Attached PDF Report
+                    </a>
+                </div>
+            </div>
+
+            <!-- Result Entry Form -->
+            <div th:if="${existingResult == null or !existingResult.locked}"
+                 class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-pencil-fill me-2 text-primary"></i>
+                    <span th:text="${existingResult != null} ? 'Edit Result' : 'Enter Result'"></span>
+                </div>
+                <div class="card-body">
+
+                    <form th:action="@{/labtech/request/{id}/result/save(id=${request.id})}" method="post"
+                          enctype="multipart/form-data">
+
+                        <!-- Sample details -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <label class="form-label">Sample Type</label>
+                                <input type="text" name="sampleType" class="form-control"
+                                       th:value="${request.sampleType}"
+                                       placeholder="e.g. Blood, Urine, Swab"/>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Sample Quality</label>
+                                <select name="sampleQuality" class="form-select">
+                                    <option th:each="sq : ${sampleQualities}"
+                                            th:value="${sq}"
+                                            th:text="${sq}"
+                                            th:selected="${request.sampleQuality == sq}">
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Overall Interpretation</label>
+                                <select name="interpretation" class="form-select">
+                                    <option th:each="i : ${interpretations}"
+                                            th:value="${i}"
+                                            th:text="${i}"
+                                            th:selected="${existingResult != null and existingResult.interpretation == i}">
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Summary result value -->
+                        <div class="mb-4">
+                            <label class="form-label">Summary / Single-value Result</label>
+                            <input type="text" name="resultValue" class="form-control"
+                                   th:value="${existingResult?.resultValue}"
+                                   placeholder="e.g. 5.2 mmol/L or Positive"/>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="mb-4">
+                            <label class="form-label">Notes / Remarks</label>
+                            <textarea name="notes" class="form-control" rows="3"
+                                      placeholder="Clinical notes, methodologies used..."
+                                      th:text="${existingResult?.notes}"></textarea>
+                        </div>
+
+                        <!-- Multi-parameter results (with optional machine PDF split view) -->
+                        <div class="card border-0 bg-light mb-4">
+                            <div class="card-header bg-transparent fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <span><i class="bi bi-table me-2"></i>Parameters</span>
+                                <div class="d-flex gap-2 align-items-center flex-wrap">
+                                    <!-- Machine PDF upload -->
+                                    <label class="mb-0 small fw-normal text-muted">
+                                        <span th:if="${existingResult != null and existingResult.machinePdfPath != null}">
+                                            <i class="bi bi-file-earmark-check-fill text-success me-1"></i>
+                                            Machine PDF attached —
+                                            <a th:href="@{/labtech/request/{id}/result/machine-pdf(id=${request.id})}"
+                                               target="_blank" class="text-danger fw-semibold text-decoration-none">
+                                                <i class="bi bi-eye me-1"></i>View
+                                            </a>
+                                            &nbsp;|&nbsp; Replace:
+                                        </span>
+                                        <span th:if="${existingResult == null or existingResult.machinePdfPath == null}">
+                                            <i class="bi bi-cpu me-1"></i>Upload machine output PDF:
+                                        </span>
+                                    </label>
+                                    <input type="file" name="machinePdf" class="form-control form-control-sm"
+                                           accept="application/pdf,.pdf"
+                                           id="machinePdfInput" style="max-width:240px;"
+                                           th:attr="onchange='toggleMachineViewer(this)'"/>
+                                    <!-- BC-10 CSV import from USB -->
+                                    <label class="btn btn-sm btn-outline-primary mb-0" style="cursor:pointer;"
+                                           title="Import CBC parameters from BC-10 USB export (CSV)">
+                                        <i class="bi bi-filetype-csv me-1"></i>Import BC-10 CSV
+                                        <input type="file" id="bc10CsvFile" accept=".csv,text/csv"
+                                               style="display:none" onchange="importBc10Csv(this)"/>
+                                    </label>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="addParamBtn">
+                                        <i class="bi bi-plus-circle me-1"></i>Add Row
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Split-view: PDF viewer left | table right (shown when machine PDF exists or file selected) -->
+                            <div id="splitView" class="d-flex gap-0"
+                                 th:style="${existingResult != null and existingResult.machinePdfPath != null} ? 'display:flex!important' : 'display:none!important'">
+                                <!-- PDF pane -->
+                                <div id="machinePdfPane" style="width:50%;min-width:320px;border-right:1px solid #dee2e6;position:relative;">
+                                    <div class="p-2 bg-white border-bottom d-flex align-items-center gap-2">
+                                        <i class="bi bi-file-earmark-pdf-fill text-danger"></i>
+                                        <span class="small fw-semibold">Machine Output — read values from here</span>
+                                        <a th:if="${existingResult != null and existingResult.machinePdfPath != null}"
+                                           th:href="@{/labtech/request/{id}/result/machine-pdf(id=${request.id})}"
+                                           target="_blank" class="btn btn-xs btn-outline-danger ms-auto py-0 px-2 small">
+                                            Open in new tab
+                                        </a>
+                                    </div>
+                                    <!-- Embedded viewer for existing saved PDF -->
+                                    <iframe th:if="${existingResult != null and existingResult.machinePdfPath != null}"
+                                            th:src="@{/labtech/request/{id}/result/machine-pdf(id=${request.id})}"
+                                            id="machinePdfFrame"
+                                            width="100%" height="520" style="border:none;display:block;"></iframe>
+                                    <!-- Placeholder shown until a new file is picked -->
+                                    <div id="machinePdfPreviewPlaceholder"
+                                         th:style="${existingResult != null and existingResult.machinePdfPath != null} ? 'display:none' : 'display:flex'"
+                                         style="height:520px;align-items:center;justify-content:center;flex-direction:column;color:#aaa;">
+                                        <i class="bi bi-file-earmark-pdf" style="font-size:3rem;"></i>
+                                        <p class="mt-2 small">PDF preview will appear here after you select a file and save.</p>
+                                    </div>
+                                </div>
+                                <!-- Table pane -->
+                                <div style="flex:1;overflow-x:auto;">
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered mb-0" id="paramsTable">
+                                            <thead class="table-light">
+                                            <tr>
+                                                <th>Parameter Name</th>
+                                                <th>Result Value</th>
+                                                <th>Unit</th>
+                                                <th>Reference Range</th>
+                                                <th>Interpretation</th>
+                                                <th></th>
+                                            </tr>
+                                            </thead>
+                                            <tbody id="paramsBody">
+                                            <tr th:each="p, i : ${existingResult?.parameters}">
+                                                <td><input type="text" class="form-control form-control-sm"
+                                                           th:name="'parameters[' + ${i.index} + '].parameterName'"
+                                                           th:value="${p.parameterName}" required/></td>
+                                                <td><input type="text" class="form-control form-control-sm"
+                                                           th:name="'parameters[' + ${i.index} + '].resultValue'"
+                                                           th:value="${p.resultValue}"/></td>
+                                                <td><input type="text" class="form-control form-control-sm"
+                                                           th:name="'parameters[' + ${i.index} + '].unit'"
+                                                           th:value="${p.unit}" placeholder="e.g. mg/dL"/></td>
+                                                <td><input type="text" class="form-control form-control-sm"
+                                                           th:name="'parameters[' + ${i.index} + '].referenceRange'"
+                                                           th:value="${p.referenceRange}" placeholder="e.g. 3.5-5.0"/></td>
+                                                <td>
+                                                    <select class="form-select form-select-sm"
+                                                            th:name="'parameters[' + ${i.index} + '].interpretation'">
+                                                        <option value="" selected>—</option>
+                                                        <option th:each="interp : ${interpretations}"
+                                                                th:value="${interp}"
+                                                                th:text="${interp}"
+                                                                th:selected="${p.interpretation == interp}"></option>
+                                                    </select>
+                                                </td>
+                                                <td>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-row">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <tr th:if="${existingResult == null or #lists.isEmpty(existingResult.parameters)}"
+                                                class="param-row">
+                                                <td><input type="text" name="parameters[0].parameterName"
+                                                           class="form-control form-control-sm" placeholder="e.g. Haemoglobin"/></td>
+                                                <td><input type="text" name="parameters[0].resultValue"
+                                                           class="form-control form-control-sm"/></td>
+                                                <td><input type="text" name="parameters[0].unit"
+                                                           class="form-control form-control-sm" placeholder="e.g. g/dL"/></td>
+                                                <td><input type="text" name="parameters[0].referenceRange"
+                                                           class="form-control form-control-sm" placeholder="12.5-17.5"/></td>
+                                                <td>
+                                                    <select name="parameters[0].interpretation" class="form-select form-select-sm">
+                                                        <option value="" selected>—</option>
+                                                        <option th:each="interp : ${interpretations}"
+                                                                th:value="${interp}" th:text="${interp}"></option>
+                                                    </select>
+                                                </td>
+                                                <td>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-row">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Normal (full-width) table — shown when no machine PDF involved -->
+                            <div id="normalTableView" class="card-body p-0"
+                                 th:style="${existingResult != null and existingResult.machinePdfPath != null} ? 'display:none!important' : ''">
+                                <div class="table-responsive">
+                                    <table class="table table-bordered mb-0" id="paramsTableNormal">
+                                        <thead class="table-light">
+                                        <tr>
+                                            <th>Parameter Name</th>
+                                            <th>Result Value</th>
+                                            <th>Unit</th>
+                                            <th>Reference Range</th>
+                                            <th>Interpretation</th>
+                                            <th></th>
+                                        </tr>
+                                        </thead>
+                                        <tbody id="paramsBodyNormal">
+                                        <tr th:each="p, i : ${existingResult?.parameters}"
+                                            th:if="${existingResult == null or existingResult.machinePdfPath == null}">
+                                            <td><input type="text" class="form-control form-control-sm"
+                                                       th:name="'parameters[' + ${i.index} + '].parameterName'"
+                                                       th:value="${p.parameterName}" required/></td>
+                                            <td><input type="text" class="form-control form-control-sm"
+                                                       th:name="'parameters[' + ${i.index} + '].resultValue'"
+                                                       th:value="${p.resultValue}"/></td>
+                                            <td><input type="text" class="form-control form-control-sm"
+                                                       th:name="'parameters[' + ${i.index} + '].unit'"
+                                                       th:value="${p.unit}" placeholder="e.g. mg/dL"/></td>
+                                            <td><input type="text" class="form-control form-control-sm"
+                                                       th:name="'parameters[' + ${i.index} + '].referenceRange'"
+                                                       th:value="${p.referenceRange}" placeholder="e.g. 3.5-5.0"/></td>
+                                            <td>
+                                                <select class="form-select form-select-sm"
+                                                        th:name="'parameters[' + ${i.index} + '].interpretation'">
+                                                    <option value="" selected>—</option>
+                                                    <option th:each="interp : ${interpretations}"
+                                                            th:value="${interp}"
+                                                            th:text="${interp}"
+                                                            th:selected="${p.interpretation == interp}"></option>
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-sm btn-outline-danger remove-row">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        <tr th:if="${existingResult == null or #lists.isEmpty(existingResult.parameters)}"
+                                            class="param-row">
+                                            <td><input type="text" name="parameters[0].parameterName"
+                                                       class="form-control form-control-sm" placeholder="e.g. Haemoglobin"/></td>
+                                            <td><input type="text" name="parameters[0].resultValue"
+                                                       class="form-control form-control-sm"/></td>
+                                            <td><input type="text" name="parameters[0].unit"
+                                                       class="form-control form-control-sm" placeholder="e.g. g/dL"/></td>
+                                            <td><input type="text" name="parameters[0].referenceRange"
+                                                       class="form-control form-control-sm" placeholder="12.5-17.5"/></td>
+                                            <td>
+                                                <select name="parameters[0].interpretation" class="form-select form-select-sm">
+                                                    <option value="" selected>—</option>
+                                                    <option th:each="interp : ${interpretations}"
+                                                            th:value="${interp}" th:text="${interp}"></option>
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-sm btn-outline-danger remove-row">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PDF Report Attachment -->
+                        <div class="card border-0 bg-light mb-4">
+                            <div class="card-header bg-transparent fw-semibold">
+                                <i class="bi bi-file-earmark-pdf-fill me-2 text-danger"></i>Lab Report PDF
+                            </div>
+                            <div class="card-body">
+                                <!-- Show existing PDF link -->
+                                <div th:if="${existingResult != null and existingResult.reportPdfPath != null}"
+                                     class="mb-3 d-flex align-items-center gap-3">
+                                    <span class="badge bg-success"><i class="bi bi-paperclip me-1"></i>PDF Attached</span>
+                                    <a th:href="@{/labtech/request/{id}/result/pdf(id=${request.id})}"
+                                       target="_blank" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-file-earmark-pdf me-1"></i>View / Download PDF
+                                    </a>
+                                    <small class="text-muted">Upload a new file below to replace it.</small>
+                                </div>
+                                <div>
+                                    <label class="form-label"
+                                           th:text="${existingResult != null and existingResult.reportPdfPath != null}
+                                                    ? 'Replace PDF Report (optional)'
+                                                    : 'Attach PDF Report (optional)'"></label>
+                                    <input type="file" name="reportPdf" class="form-control"
+                                           accept="application/pdf,.pdf"
+                                           id="reportPdfInput"/>
+                                    <div class="form-text">Accepted format: PDF. Max size: 10 MB.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action buttons -->
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save me-1"></i>Save Draft
+                            </button>
+                            <a th:href="@{/labtech/dashboard}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+
+                    <!-- Submit & Lock — separate form -->
+                    <hr th:if="${existingResult != null}"/>
+                    <form th:if="${existingResult != null}"
+                          th:action="@{/labtech/request/{id}/result/submit(id=${request.id})}"
+                          method="post" class="mt-3">
+                        <p class="text-muted small">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Once submitted, the result is locked and the request is marked <strong>COMPLETED</strong>.
+                        </p>
+                        <button type="submit" class="btn btn-success"
+                                onclick="return confirm('Submit and lock this result? This cannot be undone.')">
+                            <i class="bi bi-check-circle-fill me-1"></i>Submit &amp; Lock Result
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{labtech/fragments :: scripts}"></th:block>
+<script>
+    // -----------------------------------------------------------------------
+    //  Machine PDF toggle — show split view when a file is picked
+    // -----------------------------------------------------------------------
+    function toggleMachineViewer(input) {
+        const splitView  = document.getElementById('splitView');
+        const normalView = document.getElementById('normalTableView');
+        if (input.files && input.files.length > 0) {
+            splitView.style.display  = 'flex';
+            normalView.style.display = 'none';
+            // Show a local object URL preview in the iframe if present
+            const frame = document.getElementById('machinePdfFrame');
+            const placeholder = document.getElementById('machinePdfPreviewPlaceholder');
+            if (frame) {
+                frame.src = URL.createObjectURL(input.files[0]);
+                if (placeholder) placeholder.style.display = 'none';
+            } else {
+                // No saved iframe yet — show placeholder text is fine; iframe created server-side after save
+                if (placeholder) {
+                    placeholder.style.display = 'flex';
+                    placeholder.querySelector('p').textContent =
+                        'Save draft first to persist the PDF, then the preview will appear here.';
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    //  Row counter — target whichever tbody is visible
+    // -----------------------------------------------------------------------
+    function activeBody() {
+        const splitView = document.getElementById('splitView');
+        return (splitView && splitView.style.display !== 'none')
+            ? document.getElementById('paramsBody')
+            : document.getElementById('paramsBodyNormal');
+    }
+
+    let rowCount = Math.max(
+        document.querySelectorAll('#paramsBody tr').length,
+        document.querySelectorAll('#paramsBodyNormal tr').length
+    );
+
+    document.getElementById('addParamBtn').addEventListener('click', () => {
+        const idx = rowCount++;
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><input type="text" name="parameters[${idx}].parameterName" class="form-control form-control-sm" placeholder="e.g. WBC"/></td>
+            <td><input type="text" name="parameters[${idx}].resultValue" class="form-control form-control-sm"/></td>
+            <td><input type="text" name="parameters[${idx}].unit" class="form-control form-control-sm" placeholder="e.g. ×10³/µL"/></td>
+            <td><input type="text" name="parameters[${idx}].referenceRange" class="form-control form-control-sm"/></td>
+            <td>
+                <select name="parameters[${idx}].interpretation" class="form-select form-select-sm">
+                    <option value="" selected>—</option>
+                    <option value="NORMAL">NORMAL</option>
+                    <option value="ABNORMAL">ABNORMAL</option>
+                    <option value="CRITICAL">CRITICAL</option>
+                </select>
+            </td>
+            <td><button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="bi bi-trash"></i></button></td>
+        `;
+        activeBody().appendChild(row);
+        row.querySelector('.remove-row').addEventListener('click', () => row.remove());
+    });
+
+    document.querySelectorAll('.remove-row').forEach(btn => {
+        btn.addEventListener('click', () => btn.closest('tr').remove());
+    });
+</script>
+<script>
+// ── BC-10 CSV import from USB ────────────────────────────────────────────────
+function importBc10Csv(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const rows = parseCsvRows(e.target.result);
+            if (rows.length < 2) { alert('CSV has no data rows.'); return; }
+
+            const headers = rows[0];
+
+            // Find the first data row with a non-zero WBC or a non-empty Patient ID
+            let dataRow = null;
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                const patientId = getCsvVal(headers, row, 'Patient ID').trim();
+                const wbc = parseFloat(getCsvVal(headers, row, 'WBC (10^9/L)').trim());
+                if (patientId || (wbc && wbc !== 0)) { dataRow = row; break; }
+            }
+            if (!dataRow) { alert('No valid result row found in CSV.'); return; }
+
+            const paramMap = [
+                { col: 'WBC (10^9/L)',    name: 'WBC',    unit: '10\u2079/L'       },
+                { col: 'Lymph# (10^9/L)', name: 'Lymph#', unit: '10\u2079/L'       },
+                { col: 'Mid# (10^9/L)',   name: 'Mid#',   unit: '10\u2079/L'       },
+                { col: 'Gran# (10^9/L)',  name: 'Gran#',  unit: '10\u2079/L'       },
+                { col: 'Lymph% (%)',      name: 'Lymph%', unit: '%'                 },
+                { col: 'Mid% (%)',        name: 'Mid%',   unit: '%'                 },
+                { col: 'Gran% (%)',       name: 'Gran%',  unit: '%'                 },
+                { col: 'RBC (10^12/L)',   name: 'RBC',    unit: '10\u00B9\u00B2/L' },
+                { col: 'HGB (g/dL)',      name: 'HGB',    unit: 'g/dL'              },
+                { col: 'HCT (%)',         name: 'HCT',    unit: '%'                 },
+                { col: 'MCV (fL)',        name: 'MCV',    unit: 'fL'                },
+                { col: 'MCH (pg)',        name: 'MCH',    unit: 'pg'                },
+                { col: 'MCHC (g/L)',      name: 'MCHC',   unit: 'g/L'               },
+                { col: 'RDW-CV (%)',      name: 'RDW-CV', unit: '%'                 },
+                { col: 'RDW-SD (fL)',     name: 'RDW-SD', unit: 'fL'                },
+                { col: 'PLT (10^9/L)',    name: 'PLT',    unit: '10\u2079/L'       },
+                { col: 'MPV (fL)',        name: 'MPV',    unit: 'fL'                },
+                { col: 'PDW ( )',         name: 'PDW',    unit: ''                  },
+                { col: 'PCT (mL/L)',      name: 'PCT',    unit: 'mL/L'              },
+                { col: 'P-LCR (%)',       name: 'P-LCR',  unit: '%'                 }
+            ];
+
+            // Clear existing rows
+            const tbody = activeBody();
+            tbody.innerHTML = '';
+            rowCount = 0;
+
+            let loaded = 0;
+            paramMap.forEach(function(p, idx) {
+                const val = getCsvVal(headers, dataRow, p.col).trim();
+                if (val && val !== '0.0' && val !== '0.00' && val !== '0') {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML =
+                        '<td><input type="text" class="form-control form-control-sm"' +
+                        ' name="parameters[' + rowCount + '].parameterName" value="' + escHtml(p.name) + '" required></td>' +
+                        '<td><input type="text" class="form-control form-control-sm"' +
+                        ' name="parameters[' + rowCount + '].resultValue" value="' + escHtml(val) + '"></td>' +
+                        '<td><input type="text" class="form-control form-control-sm"' +
+                        ' name="parameters[' + rowCount + '].unit" value="' + escHtml(p.unit) + '"></td>' +
+                        '<td><input type="text" class="form-control form-control-sm"' +
+                        ' name="parameters[' + rowCount + '].referenceRange" value=""></td>' +
+                        '<td><select class="form-select form-select-sm" name="parameters[' + rowCount + '].interpretation">' +
+                        '<option value="NORMAL" selected>NORMAL</option>' +
+                        '<option value="ABNORMAL">ABNORMAL</option>' +
+                        '<option value="CRITICAL">CRITICAL</option>' +
+                        '</select></td>' +
+                        '<td><button type="button" class="btn btn-sm btn-outline-danger remove-row">' +
+                        '<i class="bi bi-trash"></i></button></td>';
+                    tbody.appendChild(tr);
+                    tr.querySelector('.remove-row').addEventListener('click', function() { tr.remove(); });
+                    rowCount++;
+                    loaded++;
+                }
+            });
+
+            // Auto-fill sample type from Background field
+            const bg = getCsvVal(headers, dataRow, 'Background').trim();
+            if (bg === 'WB') {
+                const st = document.querySelector('[name="sampleType"]');
+                if (st) st.value = 'Whole Blood (EDTA)';
+            }
+
+            alert(loaded + ' parameters imported from BC-10 CSV.');
+        } catch(err) {
+            alert('Failed to parse CSV: ' + err.message);
+        }
+        input.value = '';
+    };
+    reader.readAsText(file);
+}
+
+function parseCsvRows(text) {
+    const rows = [];
+    let row = [], field = '', inQuote = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inQuote) {
+            if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+            else if (ch === '"') { inQuote = false; }
+            else { field += ch; }
+        } else {
+            if (ch === '"') { inQuote = true; }
+            else if (ch === ',') { row.push(field); field = ''; }
+            else if (ch === '\n' || ch === '\r') {
+                if (ch === '\r' && text[i + 1] === '\n') i++;
+                row.push(field); field = '';
+                if (row.some(function(c) { return c.trim(); })) rows.push(row);
+                row = [];
+            } else { field += ch; }
+        }
+    }
+    if (field || row.length) {
+        row.push(field);
+        if (row.some(function(c) { return c.trim(); })) rows.push(row);
+    }
+    return rows;
+}
+
+function getCsvVal(headers, row, colName) {
+    const idx = headers.findIndex(function(h) { return h.trim() === colName; });
+    return (idx >= 0 && idx < row.length) ? row[idx] : '';
+}
+
+function escHtml(str) {
+    return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{labtech/fragments :: head('Lab Report')}"></th:block>
+    <style>
+        @media print {
+            #wrapper > div:first-child,   /* sidebar */
+            #page-content > div:first-child, /* topbar */
+            .no-print { display: none !important; }
+            body, #page-content, .main-content { margin: 0; padding: 0; }
+            .print-area { box-shadow: none !important; border: none !important; }
+            .page-break { page-break-before: always; }
+            a { text-decoration: none !important; }
+        }
+        .report-header { background: linear-gradient(135deg, #1a5276 0%, #2980b9 100%); color: #fff; padding: 1.5rem 2rem; border-radius: .5rem .5rem 0 0; }
+        .section-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: #6c757d; font-weight: 600; margin-bottom: .15rem; }
+        .interp-NORMAL   { background: #198754; color: #fff; }
+        .interp-ABNORMAL { background: #ffc107; color: #000; }
+        .interp-CRITICAL { background: #dc3545; color: #fff; }
+        .interp-badge { display: inline-block; padding: .3em .8em; border-radius: 2rem; font-weight: 700; font-size: .95rem; }
+    </style>
+</head>
+<body>
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{labtech/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{labtech/fragments :: topbar('Lab Report')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{labtech/fragments :: alerts}"></th:block>
+
+            <!-- Action bar -->
+            <div class="d-flex align-items-center gap-2 mb-3 no-print">
+                <a th:href="@{/labtech/history}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left me-1"></i>Back to History
+                </a>
+                <button onclick="window.print()" class="btn btn-primary btn-sm ms-auto">
+                    <i class="bi bi-printer-fill me-1"></i>Print Report
+                </button>
+            </div>
+
+            <!-- ============================================================
+                 PRINTABLE REPORT
+                 ============================================================ -->
+            <div class="card border-0 shadow print-area">
+
+                <!-- Hospital header -->
+                <div class="report-header">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h4 class="mb-0 fw-bold">Gilgal Polyclinic</h4>
+                            <small class="opacity-75">Department of Laboratory Medicine</small>
+                        </div>
+                        <div class="col-auto text-end">
+                            <h5 class="mb-0 fw-bold text-uppercase letter-spacing-1">Laboratory Report</h5>
+                            <small class="opacity-75"
+                                   th:text="${#temporals.format(result.resultDateTime,'dd MMM yyyy, HH:mm')}">—</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body px-4 pt-4">
+
+                    <!-- ── Section 1: Patient + Request Info ── -->
+                    <div class="row g-0 mb-4">
+                        <!-- Patient block -->
+                        <div class="col-md-6 border rounded-start p-3">
+                            <p class="section-label mb-2"><i class="bi bi-person-fill me-1"></i>Patient Information</p>
+                            <table class="w-100" style="font-size:.93rem">
+                                <tr>
+                                    <td class="text-muted pe-2 py-1" style="width:38%">Full Name</td>
+                                    <td class="fw-semibold"
+                                        th:text="${result.labRequest.patient.firstName + ' ' + result.labRequest.patient.lastName}">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted pe-2 py-1">National ID</td>
+                                    <td th:text="${result.labRequest.patient.nationalId ?: '—'}">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted pe-2 py-1">Date of Birth</td>
+                                    <td th:text="${result.labRequest.patient.dateOfBirth != null ?
+                                                    #temporals.format(result.labRequest.patient.dateOfBirth,'dd MMM yyyy') : '—'}">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted pe-2 py-1">Gender</td>
+                                    <td th:text="${result.labRequest.patient.gender ?: '—'}">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted pe-2 py-1">Phone</td>
+                                    <td th:text="${result.labRequest.patient.phone ?: '—'}">—</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <!-- Request / test block -->
+                        <div class="col-md-6 border border-start-0 rounded-end p-3">
+                            <p class="section-label mb-2"><i class="bi bi-flask-fill me-1"></i>Test Request Details</p>
+                            <table class="w-100" style="font-size:.93rem">
+                                <tr>
+                                    <td class="text-muted pe-2 py-1" style="width:38%">Test Name</td>
+                                    <td class="fw-semibold" th:text="${result.labRequest.testName}">—</td>
+                                </tr>
+                                <tr th:if="${result.labRequest.testCode != null}">
+                                    <td class="text-muted pe-2 py-1">Test Code</td>
+                                    <td><span class="badge bg-light text-dark border"
+                                              th:text="${result.labRequest.testCode}">—</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted pe-2 py-1">Urgency</td>
+                                    <td>
+                                        <span class="badge"
+                                              th:classappend="${result.labRequest.urgency?.name() == 'STAT'} ? 'bg-danger'
+                                                            : (${result.labRequest.urgency?.name() == 'URGENT'} ? 'bg-warning text-dark'
+                                                            : 'bg-secondary')"
+                                              th:text="${result.labRequest.urgency ?: 'ROUTINE'}">—</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted pe-2 py-1">Requested By</td>
+                                    <td th:text="${result.labRequest.requestingDoctor != null ?
+                                                    result.labRequest.requestingDoctor.firstName + ' ' + result.labRequest.requestingDoctor.lastName : '—'}">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted pe-2 py-1">Requested At</td>
+                                    <td th:text="${result.labRequest.requestedAt != null ?
+                                                    #temporals.format(result.labRequest.requestedAt,'dd MMM yyyy HH:mm') : '—'}">—</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ── Section 2: Sample Information ── -->
+                    <div class="border rounded p-3 mb-4 bg-light">
+                        <p class="section-label mb-2"><i class="bi bi-droplet-fill me-1"></i>Sample Information</p>
+                        <div class="row g-3" style="font-size:.93rem">
+                            <div class="col-sm-3">
+                                <div class="text-muted">Sample Type</div>
+                                <div class="fw-semibold" th:text="${result.labRequest.sampleType ?: '—'}">—</div>
+                            </div>
+                            <div class="col-sm-3">
+                                <div class="text-muted">Sample Quality</div>
+                                <div th:text="${result.labRequest.sampleQuality ?: '—'}">—</div>
+                            </div>
+                            <div class="col-sm-3">
+                                <div class="text-muted">Collected At</div>
+                                <div th:text="${result.labRequest.sampleCollectedAt != null ?
+                                                #temporals.format(result.labRequest.sampleCollectedAt,'dd MMM yyyy HH:mm') : '—'}">—</div>
+                            </div>
+                            <div class="col-sm-3">
+                                <div class="text-muted">Received At</div>
+                                <div th:text="${result.labRequest.sampleReceivedAt != null ?
+                                                #temporals.format(result.labRequest.sampleReceivedAt,'dd MMM yyyy HH:mm') : '—'}">—</div>
+                            </div>
+                        </div>
+                        <div th:if="${result.labRequest.specialInstructions != null and !#strings.isEmpty(result.labRequest.specialInstructions)}"
+                             class="mt-2 pt-2 border-top" style="font-size:.9rem">
+                            <span class="text-muted">Special Instructions: </span>
+                            <span th:text="${result.labRequest.specialInstructions}">—</span>
+                        </div>
+                    </div>
+
+                    <!-- ── Section 3: Result Summary ── -->
+                    <div class="border rounded p-3 mb-4">
+                        <p class="section-label mb-3"><i class="bi bi-clipboard2-pulse-fill me-1"></i>Result Summary</p>
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-4">
+                                <div class="text-muted" style="font-size:.85rem">Summary / Single-value Result</div>
+                                <div class="fw-bold fs-5 mt-1"
+                                     th:text="${result.resultValue != null ? result.resultValue + (result.unit != null ? ' ' + result.unit : '') : '—'}">—</div>
+                                <div th:if="${result.referenceRange != null}" class="text-muted small mt-1">
+                                    Reference: <span th:text="${result.referenceRange}">—</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-muted" style="font-size:.85rem">Overall Interpretation</div>
+                                <div class="mt-1">
+                                    <span class="interp-badge"
+                                          th:classappend="'interp-' + ${result.interpretation?.name() ?: 'NORMAL'}"
+                                          th:text="${result.interpretation ?: '—'}">—</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-muted" style="font-size:.85rem">Result Date &amp; Time</div>
+                                <div class="fw-semibold mt-1"
+                                     th:text="${#temporals.format(result.resultDateTime,'dd MMM yyyy, HH:mm')}">—</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Section 4: Parameters Table ── -->
+                    <div th:if="${!#lists.isEmpty(result.parameters)}" class="mb-4">
+                        <p class="section-label mb-2"><i class="bi bi-table me-1"></i>Detailed Parameters</p>
+                        <table class="table table-bordered table-hover align-middle mb-0" style="font-size:.9rem">
+                            <thead class="table-primary">
+                            <tr>
+                                <th>#</th>
+                                <th>Parameter</th>
+                                <th>Result</th>
+                                <th>Unit</th>
+                                <th>Reference Range</th>
+                                <th>Interpretation</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="p, i : ${result.parameters}">
+                                <td class="text-muted" th:text="${i.count}">1</td>
+                                <td class="fw-semibold" th:text="${p.parameterName}">—</td>
+                                <td th:text="${p.resultValue ?: '—'}">—</td>
+                                <td class="text-muted" th:text="${p.unit ?: '—'}">—</td>
+                                <td class="text-muted" th:text="${p.referenceRange ?: '—'}">—</td>
+                                <td>
+                                    <span th:if="${p.interpretation != null}"
+                                          class="badge"
+                                          th:classappend="${p.interpretation.name() == 'NORMAL'} ? 'bg-success'
+                                                        : (${p.interpretation.name() == 'CRITICAL'} ? 'bg-danger'
+                                                        : 'bg-warning text-dark')"
+                                          th:text="${p.interpretation}">—</span>
+                                    <span th:if="${p.interpretation == null}" class="text-muted">—</span>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- ── Section 5: Notes ── -->
+                    <div th:if="${result.notes != null and !#strings.isEmpty(result.notes)}"
+                         class="border rounded p-3 mb-4">
+                        <p class="section-label mb-2"><i class="bi bi-chat-left-text-fill me-1"></i>Clinical Notes / Remarks</p>
+                        <p class="mb-0" style="white-space: pre-wrap; font-size:.93rem" th:text="${result.notes}">—</p>
+                    </div>
+
+                    <!-- ── Section 6: Performed / Verified by ── -->
+                    <div class="row g-0 border-top pt-3 mt-2">
+                        <div class="col-md-6 pe-4">
+                            <p class="section-label mb-1">Performed by</p>
+                            <p class="fw-semibold mb-0"
+                               th:text="${result.performedBy != null ?
+                                          result.performedBy.firstName + ' ' + result.performedBy.lastName : '—'}">—</p>
+                            <small class="text-muted">Medical Laboratory Technician</small>
+                            <br>
+                            <small class="text-muted"
+                                   th:text="${#temporals.format(result.resultDateTime,'dd MMM yyyy HH:mm')}">—</small>
+                        </div>
+                        <div class="col-md-6 ps-4 border-start">
+                            <p class="section-label mb-1">Verified / Authorised by</p>
+                            <div th:if="${result.verifiedBy != null}">
+                                <p class="fw-semibold mb-0"
+                                   th:text="${result.verifiedBy.firstName + ' ' + result.verifiedBy.lastName}">—</p>
+                                <small class="text-muted">Laboratory Supervisor</small>
+                                <br>
+                                <small class="text-muted"
+                                       th:text="${result.verifiedAt != null ? #temporals.format(result.verifiedAt,'dd MMM yyyy HH:mm') : '—'}">—</small>
+                            </div>
+                            <div th:if="${result.verifiedBy == null}">
+                                <span class="badge bg-secondary">Pending verification</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Report footer -->
+                    <div class="text-center text-muted mt-4 pt-3 border-top" style="font-size:.78rem">
+                        This report was generated by the Gilgal Polyclinic Laboratory Information System.
+                        Results should be interpreted in conjunction with clinical findings.
+                        &nbsp;&mdash;&nbsp; Confidential: For authorised medical personnel only.
+                    </div>
+
+                </div><!-- /card-body -->
+            </div><!-- /card -->
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{labtech/fragments :: scripts}"></th:block>
+</body>
+</html>

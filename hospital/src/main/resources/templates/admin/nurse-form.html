@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{admin/fragments :: head('Add Nurse')}"/>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{admin/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{admin/fragments :: topbar('Add Nurse')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{admin/fragments :: alerts}"></th:block>
+
+            <!-- Page header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h4 class="mb-0 fw-semibold">Add Nurse</h4>
+                    <small class="text-muted">Create a staff record and login account for a new nurse</small>
+                </div>
+                <a th:href="@{/admin/users}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Back to Users
+                </a>
+            </div>
+
+            <form th:action="@{/admin/nurses}" method="post" novalidate>
+
+                <!-- ── Personal Details ──────────────────────────────────────── -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom">
+                        <h6 class="mb-0 fw-semibold">
+                            <i class="bi bi-person-vcard me-2 text-primary"></i>Personal Details
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+
+                            <!-- First Name -->
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-medium">
+                                    First Name <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" name="firstName" class="form-control"
+                                       placeholder="e.g. Jane" maxlength="80" required/>
+                            </div>
+
+                            <!-- Last Name -->
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-medium">
+                                    Last Name <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" name="lastName" class="form-control"
+                                       placeholder="e.g. Doe" maxlength="80" required/>
+                            </div>
+
+                            <!-- Date of Birth -->
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-medium">Date of Birth</label>
+                                <input type="date" name="dateOfBirth" class="form-control"/>
+                            </div>
+
+                            <!-- Gender -->
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-medium">Gender</label>
+                                <select name="gender" class="form-select">
+                                    <option value="">-- Select gender --</option>
+                                    <option th:each="g : ${genders}"
+                                            th:value="${g.name()}"
+                                            th:text="${g.name().replace('_',' ')}">Gender</option>
+                                </select>
+                            </div>
+
+                            <!-- Phone -->
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-medium">Phone Number</label>
+                                <input type="tel" name="phone" class="form-control"
+                                       placeholder="e.g. +255 712 345 678" maxlength="30"/>
+                            </div>
+
+                            <!-- Email -->
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-medium">
+                                    Email Address <span class="text-danger">*</span>
+                                </label>
+                                <input type="email" name="email" class="form-control"
+                                       placeholder="nurse@hospital.com" required/>
+                                <div class="form-text">Used for both the staff record and login account.</div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Employment Details ────────────────────────────────────── -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom">
+                        <h6 class="mb-0 fw-semibold">
+                            <i class="bi bi-building me-2 text-success"></i>Employment Details
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+
+                            <!-- License Number -->
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-medium">License / Registration Number</label>
+                                <input type="text" name="licenseNumber" class="form-control"
+                                       placeholder="e.g. NRN-2024-00123" maxlength="80"/>
+                            </div>
+
+                            <!-- Employment Date -->
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-medium">Employment Date</label>
+                                <input type="date" name="employmentDate" class="form-control"/>
+                            </div>
+
+                            <!-- Nurse Type -->
+                            <div class="col-12">
+                                <label class="form-label fw-medium">
+                                    Nurse Type <span class="text-danger">*</span>
+                                </label>
+                                <div class="row g-2">
+                                    <div class="col-12 col-md-6">
+                                        <div class="form-check nurse-type-card border rounded p-3">
+                                            <input class="form-check-input" type="radio" name="nurseType"
+                                                   id="typeWardNurse" value="WARD_NURSE" checked/>
+                                            <label class="form-check-label w-100" for="typeWardNurse">
+                                                <strong><i class="bi bi-hospital me-1"></i>Ward Nurse</strong>
+                                                <div class="text-muted small mt-1">
+                                                    Manages ward patients only — vitals, medications, wound care &amp; patient care.
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <div class="form-check nurse-type-card border rounded p-3">
+                                            <input class="form-check-input" type="radio" name="nurseType"
+                                                   id="typeNurse" value="NURSE"/>
+                                            <label class="form-check-label w-100" for="typeNurse">
+                                                <strong><i class="bi bi-clipboard2-pulse me-1"></i>Nurse (Triage + Ward)</strong>
+                                                <div class="text-muted small mt-1">
+                                                    Can perform triage assessments AND manage ward / surgical patients when assigned.
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-text">Determines which portals and activities the nurse can access.</div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Login Account ─────────────────────────────────────────── -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom">
+                        <h6 class="mb-0 fw-semibold">
+                            <i class="bi bi-shield-lock me-2 text-warning"></i>Login Account
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+
+                            <!-- Username -->
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-medium">
+                                    Username <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" name="username" class="form-control"
+                                       placeholder="e.g. nurse.jane" minlength="3" maxlength="60" required
+                                       autocomplete="off"/>
+                                <div class="form-text">3–60 characters. Must be unique.</div>
+                            </div>
+
+                            <!-- Password -->
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-medium">
+                                    Password <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <input type="password" name="password" id="nursePassword" class="form-control"
+                                           placeholder="Min. 8 characters" minlength="8" required
+                                           autocomplete="new-password"/>
+                                    <button type="button" class="btn btn-outline-secondary"
+                                            onclick="togglePwd('nursePassword', this)">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">At least 8 characters.</div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="alert alert-info py-2 mb-0">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    The account role is determined by the <strong>Nurse Type</strong> selected above.
+                                    A <em>Ward Nurse</em> only accesses ward patients; a <em>Nurse</em> accesses
+                                    both triage and ward / surgery when assigned.
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Submit ────────────────────────────────────────────────── -->
+                <div class="d-flex gap-2 justify-content-end">
+                    <a th:href="@{/admin/users}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-lg me-1"></i>Cancel
+                    </a>
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-person-plus-fill me-1"></i>Create Nurse
+                    </button>
+                </div>
+
+            </form>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{admin/fragments :: scripts}"></th:block>
+<script>
+    function togglePwd(inputId, btn) {
+        const input = document.getElementById(inputId);
+        const hidden = input.type === 'password';
+        input.type = hidden ? 'text' : 'password';
+        btn.querySelector('i').className = hidden ? 'bi bi-eye-slash' : 'bi bi-eye';
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{ward-nurse/fragments :: head('Ward Patients')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{ward-nurse/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{ward-nurse/fragments :: topbar('Ward Patients')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{ward-nurse/fragments :: alerts}"></th:block>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-people-fill me-2 text-primary"></i>All Ward Patients
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient Name</th>
+                                <th>File #</th>
+                                <th>Ward</th>
+                                <th>Bed</th>
+                                <th>Status</th>
+                                <th>Admitted By</th>
+                                <th>Admit Date</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(assignments)}">
+                                <td colspan="9" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox fs-4 d-block mb-2"></i>No active ward patients.
+                                </td>
+                            </tr>
+                            <tr th:each="a, i : ${assignments}">
+                                <td th:text="${i.count}">1</td>
+                                <td>
+                                    <div class="fw-semibold"
+                                         th:text="${a.patient.firstName + ' ' + a.patient.lastName}">—</div>
+                                </td>
+                                <td><small class="text-muted" th:text="${a.patient.nationalId ?: '—'}">—</small></td>
+                                <td th:text="${a.ward ?: '—'}">—</td>
+                                <td th:text="${a.bedNumber ?: '—'}">—</td>
+                                <td>
+                                    <span th:text="${a.status}"
+                                          th:classappend="${a.status.name() == 'CRITICAL'} ? 'badge bg-danger' :
+                                                           (${a.status.name() == 'STABLE'} ? 'badge bg-success' :
+                                                           (${a.status.name() == 'DISCHARGED'} ? 'badge bg-secondary' :
+                                                           'badge bg-warning text-dark'))">—</span>
+                                </td>
+                                <td>
+                                    <span th:if="${a.assignedByDoctor != null}"
+                                          th:text="'Dr. ' + ${a.assignedByDoctor.firstName} + ' ' + ${a.assignedByDoctor.lastName}">—</span>
+                                    <span th:unless="${a.assignedByDoctor != null}" class="text-muted">—</span>
+                                </td>
+                                <td th:text="${#temporals.format(a.admitDate, 'dd MMM yyyy HH:mm')}">—</td>
+                                <td>
+                                    <a th:href="@{/ward-nurse/patients/{id}/care(id=${a.id})}"
+                                       class="btn btn-sm btn-primary me-1">
+                                        <i class="bi bi-clipboard2-pulse me-1"></i>Care
+                                    </a>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{ward-nurse/fragments :: scripts}"></th:block>
+</body>
+</html>

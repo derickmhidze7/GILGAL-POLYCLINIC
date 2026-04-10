@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{doctor/fragments :: head('Patient Care Detail')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{doctor/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{doctor/fragments :: topbar('Patient Care Detail')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{doctor/fragments :: alerts}"></th:block>
+
+            <!-- Back link + header -->
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center gap-3">
+                    <a th:href="@{/doctor/ward-patients}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Back
+                    </a>
+                    <div>
+                        <h5 class="fw-bold mb-0">
+                            <i class="bi bi-person-lines-fill text-primary me-2"></i>
+                            <span th:text="${detail.patientFullName}">Patient Name</span>
+                        </h5>
+                        <small class="text-muted">
+                            ID: <span th:text="${detail.patientNationalId}">—</span>
+                            &nbsp;|&nbsp;
+                            <span th:text="${detail.ward != null} ? ${detail.ward} : '—'">—</span>
+                            <span th:if="${detail.bedNumber != null and !#strings.isEmpty(detail.bedNumber)}"
+                                  th:text="' | Bed ' + ${detail.bedNumber}"></span>
+                        </small>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge fs-6"
+                          th:classappend="${detail.statusName == 'CRITICAL'} ? 'bg-danger' :
+                                           (${detail.statusName == 'STABLE'}   ? 'bg-success' :
+                                            (${detail.statusName == 'ADMITTED'} ? 'bg-primary' :
+                                             (${detail.statusName == 'DISCHARGED'} ? 'bg-secondary' : 'bg-warning text-dark')))"
+                          th:text="${detail.statusName}">ADMITTED</span>
+                    <!-- Surgery button — hidden once discharged/transferred -->
+                    <a th:href="@{/doctor/ward-patients/{id}/surgery(id=${detail.assignmentId})}"
+                       th:if="${detail.statusName != 'DISCHARGED' and detail.statusName != 'TRANSFERRED'}"
+                       class="btn btn-sm btn-primary">
+                        <i class="bi bi-scissors me-1"></i>Create Surgery Order
+                    </a>
+                    <!-- Discharge button — hidden once already discharged/transferred -->
+                    <button type="button"
+                            th:if="${detail.statusName != 'DISCHARGED' and detail.statusName != 'TRANSFERRED'}"
+                            class="btn btn-sm btn-danger"
+                            data-bs-toggle="modal" data-bs-target="#dischargeModal">
+                        <i class="bi bi-box-arrow-right me-1"></i>Discharge Patient
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pending Bills Warning -->
+            <div th:if="${pendingBills != null and !#lists.isEmpty(pendingBills)}"
+                 class="card border-danger shadow-sm mb-3">
+                <div class="card-header bg-danger text-white fw-semibold">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Pending Unpaid Bills — Discharge Blocked
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Description</th>
+                            <th>Invoice #</th>
+                            <th class="text-end">Amount</th>
+                            <th>Status</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="b : ${pendingBills}">
+                            <td th:text="${b.label}">—</td>
+                            <td class="font-monospace small" th:text="${b.invoiceNumber ?: '—'}">—</td>
+                            <td class="text-end fw-semibold text-danger"
+                                th:text="${'TZSh ' + #numbers.formatDecimal(b.amount, 1, 'COMMA', 0, 'POINT')}">0</td>
+                            <td>
+                                <span th:class="${b.statusDisplay == 'PARTIALLY_PAID' ? 'badge bg-warning text-dark' :
+                                                (b.statusDisplay == 'ISSUED' ? 'badge bg-warning text-dark' :
+                                                'badge bg-secondary')}"
+                                      th:text="${b.statusDisplay}">—</span>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-danger-subtle small text-danger">
+                    <i class="bi bi-info-circle me-1"></i>
+                    This patient cannot be discharged until all bills are settled. Contact the receptionist.
+                </div>
+            </div>
+
+            <!-- Admission summary row -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body py-2">
+                            <div class="small text-muted">Admitted</div>
+                            <div class="fw-semibold"
+                                 th:text="${detail.admitDate != null} ? ${#temporals.format(detail.admitDate,'dd MMM yyyy HH:mm')} : '—'">—</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body py-2">
+                            <div class="small text-muted">Expected Discharge</div>
+                            <div class="fw-semibold"
+                                 th:text="${detail.dischargeDate != null} ? ${#temporals.format(detail.dischargeDate,'dd MMM yyyy')} : '—'">—</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body py-2">
+                            <div class="small text-muted">Assigned Nurse</div>
+                            <div class="fw-semibold" th:text="${detail.assignedNurseName}">—</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body py-2">
+                            <div class="small text-muted">Admission Notes</div>
+                            <div class="small fst-italic"
+                                 th:text="${detail.admissionNotes != null and !#strings.isEmpty(detail.admissionNotes)} ? ${detail.admissionNotes} : 'None recorded'">—</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Care tabs -->
+            <ul class="nav nav-tabs" id="careTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="vitals-tab" data-bs-toggle="tab"
+                            data-bs-target="#vitals" type="button" role="tab">
+                        <i class="bi bi-activity me-1"></i>Vitals
+                        <span class="badge bg-secondary ms-1"
+                              th:text="${#lists.size(detail.vitals)}">0</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="meds-tab" data-bs-toggle="tab"
+                            data-bs-target="#meds" type="button" role="tab">
+                        <i class="bi bi-capsule me-1"></i>Medications
+                        <span class="badge bg-secondary ms-1"
+                              th:text="${#lists.size(detail.medications)}">0</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="wound-tab" data-bs-toggle="tab"
+                            data-bs-target="#wound" type="button" role="tab">
+                        <i class="bi bi-bandaid me-1"></i>Wound Care
+                        <span class="badge bg-secondary ms-1"
+                              th:text="${#lists.size(detail.woundNotes)}">0</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="rx-tab" data-bs-toggle="tab"
+                            data-bs-target="#rx" type="button" role="tab">
+                        <i class="bi bi-capsule-pill me-1"></i>Prescriptions
+                        <span class="badge bg-secondary ms-1"
+                              th:text="${#lists.size(detail.prescriptions)}">0</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="lab-tab" data-bs-toggle="tab"
+                            data-bs-target="#lab" type="button" role="tab">
+                        <i class="bi bi-eyedropper me-1"></i>Lab Requests
+                        <span class="badge bg-secondary ms-1"
+                              th:text="${#lists.size(detail.labRequests)}">0</span>
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content border border-top-0 rounded-bottom shadow-sm bg-white mb-4">
+
+                <!-- ── VITALS TAB ───────────────────────────────── -->
+                <div class="tab-pane fade show active p-3" id="vitals" role="tabpanel">
+                    <div th:if="${#lists.isEmpty(detail.vitals)}" class="text-center py-4 text-muted">
+                        <i class="bi bi-activity display-3"></i>
+                        <p class="mt-2">No vital signs recorded yet.</p>
+                    </div>
+                    <div th:if="${!#lists.isEmpty(detail.vitals)}" class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Recorded</th>
+                                <th>Recorded By</th>
+                                <th>BP (mmHg)</th>
+                                <th>Pulse (bpm)</th>
+                                <th>Temp (°C)</th>
+                                <th>RR (/min)</th>
+                                <th>SpO2 (%)</th>
+                                <th>Pain (0-10)</th>
+                                <th>Alerts</th>
+                                <th>Notes</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="v : ${detail.vitals}"
+                                th:classappend="${v.hasAlerts} ? 'table-danger' : ''">
+                                <td class="small text-nowrap"
+                                    th:text="${v.recordedAt != null} ? ${#temporals.format(v.recordedAt,'dd MMM yyyy HH:mm')} : '—'">—</td>
+                                <td class="small" th:text="${v.recordedByName}">—</td>
+                                <td th:text="${v.bpSystolic != null} ? (${v.bpSystolic} + '/' + ${v.bpDiastolic}) : '—'">—</td>
+                                <td th:text="${v.pulseRate != null} ? ${v.pulseRate} : '—'">—</td>
+                                <td th:text="${v.temperature != null} ? ${v.temperature} : '—'">—</td>
+                                <td th:text="${v.respiratoryRate != null} ? ${v.respiratoryRate} : '—'">—</td>
+                                <td th:text="${v.spo2 != null} ? ${v.spo2} : '—'">—</td>
+                                <td th:text="${v.painScore != null} ? ${v.painScore} : '—'">—</td>
+                                <td>
+                                    <span th:if="${v.hasAlerts}" class="badge bg-danger small"
+                                          th:title="${v.alertDetails}">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>Alert
+                                    </span>
+                                </td>
+                                <td class="small text-muted"
+                                    th:text="${v.notes != null and !#strings.isEmpty(v.notes)} ? ${v.notes} : ''">—</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ── MEDICATIONS TAB ──────────────────────────── -->
+                <div class="tab-pane fade p-3" id="meds" role="tabpanel">
+                    <div th:if="${#lists.isEmpty(detail.medications)}" class="text-center py-4 text-muted">
+                        <i class="bi bi-capsule display-3"></i>
+                        <p class="mt-2">No medication administration records yet.</p>
+                    </div>
+                    <div th:if="${!#lists.isEmpty(detail.medications)}" class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Medication</th>
+                                <th>Dose</th>
+                                <th>Route</th>
+                                <th>Scheduled</th>
+                                <th>Administered</th>
+                                <th>Status</th>
+                                <th>Skip Reason</th>
+                                <th>Administered By</th>
+                                <th>Remarks</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="m : ${detail.medications}"
+                                th:classappend="${!m.wasGiven} ? 'table-warning' : ''">
+                                <td class="fw-semibold small" th:text="${m.medicationName}">—</td>
+                                <td class="small" th:text="${m.doseGiven != null} ? ${m.doseGiven} : '—'">—</td>
+                                <td class="small" th:text="${m.route != null} ? ${m.route} : '—'">—</td>
+                                <td class="small text-nowrap"
+                                    th:text="${m.scheduledTime != null} ? ${#temporals.format(m.scheduledTime,'dd MMM yyyy HH:mm')} : '—'">—</td>
+                                <td class="small text-nowrap"
+                                    th:text="${m.administeredAt != null} ? ${#temporals.format(m.administeredAt,'dd MMM yyyy HH:mm')} : '—'">—</td>
+                                <td>
+                                    <span th:if="${m.wasGiven}" class="badge bg-success">Given</span>
+                                    <span th:if="${!m.wasGiven}" class="badge bg-warning text-dark">Skipped</span>
+                                </td>
+                                <td class="small text-muted"
+                                    th:text="${m.skipReasonName != null} ? ${m.skipReasonName} : ''">—</td>
+                                <td class="small" th:text="${m.administeredByName}">—</td>
+                                <td class="small text-muted"
+                                    th:text="${m.remarks != null and !#strings.isEmpty(m.remarks)} ? ${m.remarks} : (${m.skipNotes != null and !#strings.isEmpty(m.skipNotes)} ? ${m.skipNotes} : '')">—</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ── WOUND CARE TAB ───────────────────────────── -->
+                <div class="tab-pane fade p-3" id="wound" role="tabpanel">
+                    <div th:if="${#lists.isEmpty(detail.woundNotes)}" class="text-center py-4 text-muted">
+                        <i class="bi bi-bandaid display-3"></i>
+                        <p class="mt-2">No wound care notes recorded yet.</p>
+                    </div>
+                    <div th:if="${!#lists.isEmpty(detail.woundNotes)}">
+                        <div th:each="w : ${detail.woundNotes}"
+                             class="card border-0 border-start mb-3"
+                             th:classappend="${w.signsOfInfection} ? 'border-danger border-3' : 'border-secondary border-2'">
+                            <div class="card-body py-2">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <span class="fw-semibold small">
+                                            <i class="bi bi-person-fill me-1 text-muted"></i>
+                                            <span th:text="${w.recordedByName}">—</span>
+                                        </span>
+                                        <span class="ms-3 text-muted small"
+                                              th:text="${w.recordedAt != null} ? ${#temporals.format(w.recordedAt,'dd MMM yyyy HH:mm')} : '—'">—</span>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <span th:if="${w.dressingChanged}" class="badge bg-info text-dark">Dressing Changed</span>
+                                        <span th:if="${w.signsOfInfection}" class="badge bg-danger">
+                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>Infection Signs
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="row g-2 small">
+                                    <div class="col-md-3" th:if="${w.woundAppearance != null and !#strings.isEmpty(w.woundAppearance)}">
+                                        <span class="text-muted">Appearance:</span>
+                                        <span th:text="${w.woundAppearance}">—</span>
+                                    </div>
+                                    <div class="col-md-3" th:if="${w.dressingType != null and !#strings.isEmpty(w.dressingType)}">
+                                        <span class="text-muted">Dressing Type:</span>
+                                        <span th:text="${w.dressingType}">—</span>
+                                    </div>
+                                    <div class="col-md-4" th:if="${w.signsOfInfection and w.infectionDescription != null and !#strings.isEmpty(w.infectionDescription)}">
+                                        <span class="text-danger fw-semibold">Infection:</span>
+                                        <span th:text="${w.infectionDescription}">—</span>
+                                    </div>
+                                    <div class="col-md-4" th:if="${w.remarks != null and !#strings.isEmpty(w.remarks)}">
+                                        <span class="text-muted">Remarks:</span>
+                                        <span class="fst-italic" th:text="${w.remarks}">—</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── PRESCRIPTIONS TAB ────────────────────────── -->
+                <div class="tab-pane fade p-3" id="rx" role="tabpanel">
+                    <div class="row g-4">
+
+                        <!-- Add Prescription Form -->
+                        <div class="col-12 col-lg-5">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white fw-semibold">
+                                    <i class="bi bi-plus-circle me-2 text-primary"></i>Add Prescription
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert alert-info d-flex gap-2 align-items-start py-2 mb-3">
+                                        <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+                                        <small>An invoice will be automatically sent to the receptionist for payment when you add a prescription.</small>
+                                    </div>
+                                    <form th:action="@{/doctor/ward-patients/{id}/prescriptions(id=${detail.assignmentId})}"
+                                          method="post" onsubmit="return rxEnsureName()">
+
+                                        <!-- Hidden fields -->
+                                        <input type="hidden" id="rxMedName"       name="medicationName"/>
+                                        <input type="hidden" id="rxPriceItemId"   name="priceItemId"/>
+                                        <input type="hidden" id="rxDispenseWhole" name="dispenseAsWhole" value="false"/>
+                                        <input type="hidden" id="rxDosesPerDay"   name="dosesPerDay"/>
+                                        <input type="hidden" id="rxQtyPerDose"    name="quantityPerDose"/>
+                                        <input type="hidden" id="rxNumDays"       name="numberOfDays"/>
+                                        <input type="hidden" id="rxTotalQty"      name="totalQuantity" value="1"/>
+
+                                        <div class="row g-3">
+                                            <!-- Drug Search -->
+                                            <div class="col-12 position-relative">
+                                                <label class="form-label small fw-semibold">Drug / Medication <span class="text-danger">*</span></label>
+                                                <input type="text" id="rxSearchInput" class="form-control form-control-sm"
+                                                       placeholder="Type drug name…" autocomplete="off"
+                                                       oninput="rxAutoSearch(this.value)"/>
+                                                <div id="rxAutocomplete" class="autocomplete-list d-none"></div>
+                                                <small id="rxSelectedName" class="text-success d-none fw-semibold mt-1 d-block"></small>
+                                            </div>
+
+                                            <!-- Dispense as whole -->
+                                            <div class="col-12">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="rxWholeChk"
+                                                           onchange="rxToggleMode()"/>
+                                                    <label class="form-check-label small" for="rxWholeChk">Dispense as whole unit</label>
+                                                </div>
+                                            </div>
+
+                                            <!-- Standard dosage -->
+                                            <div id="rxModeStandard" class="col-12">
+                                                <div class="row g-2">
+                                                    <div class="col-4">
+                                                        <label class="form-label small">Doses/day</label>
+                                                        <input type="number" min="1" id="rxDosesDay" class="form-control form-control-sm"
+                                                               placeholder="e.g. 2" oninput="rxUpdatePreview()"/>
+                                                    </div>
+                                                    <div class="col-4">
+                                                        <label class="form-label small">Qty/dose</label>
+                                                        <input type="number" min="1" id="rxQtyDoseInput" class="form-control form-control-sm"
+                                                               placeholder="e.g. 1" oninput="rxUpdatePreview()"/>
+                                                    </div>
+                                                    <div class="col-4">
+                                                        <label class="form-label small">Days</label>
+                                                        <input type="number" min="1" id="rxNumDaysInput" class="form-control form-control-sm"
+                                                               placeholder="e.g. 5" oninput="rxUpdatePreview()"/>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Whole-unit qty -->
+                                            <div id="rxModeWhole" class="col-12 d-none">
+                                                <label class="form-label small">Total Quantity</label>
+                                                <input type="number" min="1" id="rxWholeQty" class="form-control form-control-sm"
+                                                       placeholder="e.g. 2" oninput="rxUpdatePreview()"/>
+                                            </div>
+
+                                            <!-- Preview -->
+                                            <div class="col-12">
+                                                <span id="rxPreview" class="badge bg-info text-dark d-none"></span>
+                                            </div>
+
+                                            <!-- Route & Instructions -->
+                                            <div class="col-6">
+                                                <label class="form-label small fw-semibold">Route</label>
+                                                <select name="route" id="rxRoute" class="form-select form-select-sm">
+                                                    <option value="ORAL">Oral</option>
+                                                    <option value="IV">IV</option>
+                                                    <option value="IM">IM</option>
+                                                    <option value="SC">SC</option>
+                                                    <option value="TOPICAL">Topical</option>
+                                                    <option value="INHALATION">Inhalation</option>
+                                                    <option value="SUBLINGUAL">Sublingual</option>
+                                                    <option value="RECTAL">Rectal</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label small fw-semibold">Instructions</label>
+                                                <input type="text" name="instructions" class="form-control form-control-sm"
+                                                       placeholder="e.g. Take after meals"/>
+                                            </div>
+
+                                            <div class="col-12">
+                                                <button type="submit" class="btn btn-primary btn-sm w-100">
+                                                    <i class="bi bi-plus-circle me-1"></i>Add Prescription
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Prescriptions List -->
+                        <div class="col-12 col-lg-7">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white fw-semibold">
+                                    <i class="bi bi-list-ul me-2 text-primary"></i>Active Prescriptions
+                                </div>
+                                <div class="card-body p-0">
+                                    <div th:if="${#lists.isEmpty(detail.prescriptions)}" class="text-center py-4 text-muted">
+                                        <i class="bi bi-capsule-pill display-3"></i>
+                                        <p class="mt-2">No prescriptions added yet.</p>
+                                    </div>
+                                    <div th:if="${!#lists.isEmpty(detail.prescriptions)}" class="table-responsive">
+                                        <table class="table table-sm table-hover mb-0">
+                                            <thead class="table-light">
+                                            <tr>
+                                                <th>Medication</th>
+                                                <th>Dosage</th>
+                                                <th>Route</th>
+                                                <th>Instructions</th>
+                                                <th>By</th>
+                                                <th>Date</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            <tr th:each="rx : ${detail.prescriptions}">
+                                                <td class="fw-semibold small" th:text="${rx.medicationName}">—</td>
+                                                <td class="small">
+                                                    <span th:if="${rx.dispenseAsWhole}"
+                                                          th:text="${'Whole — ' + (rx.totalQuantity != null ? rx.totalQuantity : 1) + ' unit(s)'}">—</span>
+                                                    <span th:if="${!rx.dispenseAsWhole and rx.dosesPerDay != null}"
+                                                          th:text="${rx.dosesPerDay + '×' + rx.quantityPerDose + ' for ' + rx.numberOfDays + 'd = ' + rx.totalQuantity + ' units'}">—</span>
+                                                    <span th:if="${!rx.dispenseAsWhole and rx.dosesPerDay == null}" class="text-muted">—</span>
+                                                </td>
+                                                <td class="small" th:text="${rx.route ?: '—'}">—</td>
+                                                <td class="small text-muted" th:text="${rx.instructions ?: '—'}">—</td>
+                                                <td class="small" th:text="${rx.prescribedByName}">—</td>
+                                                <td class="small text-nowrap"
+                                                    th:text="${rx.prescribedAt != null ? #temporals.format(rx.prescribedAt,'dd MMM yyyy') : '—'}">—</td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- ── LAB REQUESTS TAB ─────────────────────────── -->
+                <div class="tab-pane fade p-3" id="lab" role="tabpanel">
+                    <div class="row g-4">
+
+                        <!-- Add Lab Request Form -->
+                        <div class="col-12 col-lg-5">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white fw-semibold">
+                                    <i class="bi bi-plus-circle me-2 text-warning"></i>Add Lab Request
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert alert-info d-flex gap-2 align-items-start py-2 mb-3">
+                                        <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+                                        <small>An invoice will be automatically sent to the receptionist for payment.</small>
+                                    </div>
+                                    <form th:action="@{/doctor/ward-patients/{id}/lab-requests(id=${detail.assignmentId})}"
+                                          method="post" onsubmit="return labEnsureItem()">
+
+                                        <input type="hidden" id="labPriceItemId" name="priceItemId"/>
+
+                                        <div class="row g-3">
+                                            <!-- Test search -->
+                                            <div class="col-12 position-relative">
+                                                <label class="form-label small fw-semibold">Lab Test <span class="text-danger">*</span></label>
+                                                <input type="text" id="labSearchInput" class="form-control form-control-sm"
+                                                       placeholder="Type test name…" autocomplete="off"
+                                                       oninput="labAutoSearch(this.value)"/>
+                                                <div id="labAutocomplete" class="autocomplete-list d-none"></div>
+                                                <small id="labSelectedName" class="text-success d-none fw-semibold mt-1 d-block"></small>
+                                            </div>
+
+                                            <!-- Urgency -->
+                                            <div class="col-12">
+                                                <label class="form-label small fw-semibold">Urgency</label>
+                                                <select name="urgency" class="form-select form-select-sm">
+                                                    <option value="ROUTINE">Routine</option>
+                                                    <option value="URGENT">Urgent</option>
+                                                    <option value="STAT">STAT</option>
+                                                </select>
+                                            </div>
+
+                                            <!-- Clinical Notes -->
+                                            <div class="col-12">
+                                                <label class="form-label small fw-semibold">Clinical Notes</label>
+                                                <textarea name="clinicalNotes" class="form-control form-control-sm" rows="2"
+                                                          placeholder="Reason for test, relevant history…"></textarea>
+                                            </div>
+
+                                            <div class="col-12">
+                                                <button type="submit" class="btn btn-warning btn-sm w-100">
+                                                    <i class="bi bi-plus-circle me-1"></i>Add Lab Request
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Lab Requests List -->
+                        <div class="col-12 col-lg-7">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white fw-semibold">
+                                    <i class="bi bi-list-ul me-2 text-warning"></i>Lab Requests
+                                </div>
+                                <div class="card-body p-0">
+                                    <div th:if="${#lists.isEmpty(detail.labRequests)}" class="text-center py-4 text-muted">
+                                        <i class="bi bi-eyedropper display-3"></i>
+                                        <p class="mt-2">No lab requests added yet.</p>
+                                    </div>
+                                    <div th:if="${!#lists.isEmpty(detail.labRequests)}" class="table-responsive">
+                                        <table class="table table-sm table-hover mb-0">
+                                            <thead class="table-light">
+                                            <tr>
+                                                <th>Test</th>
+                                                <th>Urgency</th>
+                                                <th>Notes</th>
+                                                <th>Requested By</th>
+                                                <th>Date</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            <tr th:each="lr : ${detail.labRequests}">
+                                                <td class="fw-semibold small" th:text="${lr.testName}">—</td>
+                                                <td>
+                                                    <span class="badge"
+                                                          th:classappend="${lr.urgency == 'STAT'} ? 'bg-danger' : (${lr.urgency == 'URGENT'} ? 'bg-warning text-dark' : 'bg-secondary')"
+                                                          th:text="${lr.urgency}">—</span>
+                                                </td>
+                                                <td class="small text-muted" th:text="${lr.clinicalNotes ?: '—'}">—</td>
+                                                <td class="small" th:text="${lr.requestedByName}">—</td>
+                                                <td class="small text-nowrap"
+                                                    th:text="${lr.requestedAt != null ? #temporals.format(lr.requestedAt,'dd MMM yyyy') : '—'}">—</td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div><!-- /tab-content -->
+
+        </main>
+    </div>
+</div>
+
+<!-- ── Discharge Confirmation Modal ─────────────────────────── -->
+<div class="modal fade" id="dischargeModal" tabindex="-1" aria-labelledby="dischargeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="dischargeModalLabel">
+                    <i class="bi bi-box-arrow-right me-2"></i>Confirm Patient Discharge
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning d-flex align-items-start gap-2 mb-3">
+                    <i class="bi bi-exclamation-triangle-fill fs-5 mt-1"></i>
+                    <div>
+                        <strong>This action cannot be undone.</strong><br>
+                        The patient will be marked as <strong>discharged</strong> and their bed will be freed.
+                    </div>
+                </div>
+                <p class="mb-1 small text-muted">Patient:</p>
+                <p class="fw-semibold" th:text="${detail.patientFullName}">Patient Name</p>
+                <p class="mb-1 small text-muted">Ward / Bed:</p>
+                <p class="fw-semibold">
+                    <span th:text="${detail.ward != null} ? ${detail.ward} : '—'">—</span>
+                    <span th:if="${detail.bedNumber != null and !#strings.isEmpty(detail.bedNumber)}"
+                          th:text="' / Bed ' + ${detail.bedNumber}"></span>
+                </p>
+            </div>
+            <div class="modal-footer flex-column align-items-stretch gap-2">
+                <div th:if="${pendingBills != null and !#lists.isEmpty(pendingBills)}"
+                     class="alert alert-danger mb-0 text-center small w-100">
+                    <i class="bi bi-lock-fill me-1"></i>Discharge blocked — settle all pending bills first.
+                </div>
+                <div class="d-flex justify-content-end gap-2 w-100">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-1"></i>Cancel
+                    </button>
+                    <form th:unless="${pendingBills != null and !#lists.isEmpty(pendingBills)}"
+                          th:action="@{/doctor/ward-patients/{id}/discharge(id=${detail.assignmentId})}"
+                          method="post" class="d-inline">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-box-arrow-right me-1"></i>Yes, Discharge Patient
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{doctor/fragments :: scripts}"></th:block>
+
+<script>
+// ── Ward Prescription — pharmacy autocomplete ───────────────────────
+let rxDebounce;
+function rxAutoSearch(q) {
+    clearTimeout(rxDebounce);
+    const box = document.getElementById('rxAutocomplete');
+    if (!q || q.length < 2) { box.classList.add('d-none'); box.innerHTML = ''; return; }
+    rxDebounce = setTimeout(() => {
+        fetch('/doctor/api/catalogue/pharmacy/search?q=' + encodeURIComponent(q))
+            .then(r => r.json())
+            .then(items => {
+                box.innerHTML = '';
+                if (!items.length) { box.classList.add('d-none'); return; }
+                items.forEach(item => {
+                    const d = document.createElement('div');
+                    d.className = 'ac-item';
+                    d.innerHTML = '<strong>' + item.name + '</strong>'
+                        + (item.classification ? ' <small class="text-muted">' + item.classification + '</small>' : '');
+                    d.onclick = () => rxPickItem(item);
+                    box.appendChild(d);
+                });
+                box.classList.remove('d-none');
+            });
+    }, 250);
+}
+
+function rxPickItem(item) {
+    document.getElementById('rxSearchInput').value    = item.name;
+    document.getElementById('rxMedName').value        = item.name;
+    document.getElementById('rxPriceItemId').value    = item.id;
+    const label = document.getElementById('rxSelectedName');
+    label.textContent = '✓ ' + item.name;
+    label.classList.remove('d-none');
+    document.getElementById('rxAutocomplete').classList.add('d-none');
+}
+
+// ── Mode toggle & preview ────────────────────────────────────────────
+function rxToggleMode() {
+    const whole = document.getElementById('rxWholeChk').checked;
+    document.getElementById('rxModeStandard').classList.toggle('d-none', whole);
+    document.getElementById('rxModeWhole').classList.toggle('d-none', !whole);
+    document.getElementById('rxDispenseWhole').value = whole;
+    rxUpdatePreview();
+}
+
+function rxUpdatePreview() {
+    const whole = document.getElementById('rxWholeChk').checked;
+    let qty = 0, text = '';
+    if (whole) {
+        qty  = parseInt(document.getElementById('rxWholeQty').value) || 0;
+        text = 'Total to dispense: ' + qty + ' unit(s)';
+    } else {
+        const d = parseInt(document.getElementById('rxDosesDay').value)    || 0;
+        const q = parseInt(document.getElementById('rxQtyDoseInput').value) || 0;
+        const n = parseInt(document.getElementById('rxNumDaysInput').value) || 0;
+        qty  = d * q * n;
+        text = d + ' doses/day × ' + q + ' per dose × ' + n + ' days = ' + qty + ' total';
+    }
+    const preview = document.getElementById('rxPreview');
+    if (qty > 0) { preview.textContent = text; preview.classList.remove('d-none'); }
+    else          { preview.classList.add('d-none'); }
+    document.getElementById('rxTotalQty').value  = qty || 1;
+    document.getElementById('rxDispenseWhole').value = whole;
+    if (!whole) {
+        document.getElementById('rxDosesPerDay').value = document.getElementById('rxDosesDay').value;
+        document.getElementById('rxQtyPerDose').value  = document.getElementById('rxQtyDoseInput').value;
+        document.getElementById('rxNumDays').value     = document.getElementById('rxNumDaysInput').value;
+    } else {
+        document.getElementById('rxDosesPerDay').value = '';
+        document.getElementById('rxQtyPerDose').value  = '';
+        document.getElementById('rxNumDays').value     = '';
+    }
+}
+
+function rxEnsureName() {
+    const name = document.getElementById('rxMedName').value.trim();
+    if (!name) { alert('Please select a drug from the search dropdown.'); return false; }
+    rxUpdatePreview();
+    return true;
+}
+
+// Close autocomplete on outside click
+document.addEventListener('click', e => {
+    if (!e.target.closest('#rxSearchInput') && !e.target.closest('#rxAutocomplete')) {
+        document.getElementById('rxAutocomplete').classList.add('d-none');
+    }
+    if (!e.target.closest('#labSearchInput') && !e.target.closest('#labAutocomplete')) {
+        const el = document.getElementById('labAutocomplete');
+        if (el) el.classList.add('d-none');
+    }
+});
+
+// ── Lab test autocomplete ────────────────────────────────────────────────────
+let labDebounce;
+function labAutoSearch(q) {
+    clearTimeout(labDebounce);
+    const drop = document.getElementById('labAutocomplete');
+    if (!q || q.length < 2) { drop.classList.add('d-none'); return; }
+    labDebounce = setTimeout(async () => {
+        try {
+            const items = await fetch('/doctor/api/catalogue/lab/search?q=' + encodeURIComponent(q))
+                    .then(r => r.json());
+            drop.innerHTML = '';
+            if (!items.length) { drop.classList.add('d-none'); return; }
+            items.forEach(item => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'list-group-item list-group-item-action py-1 px-2 small';
+                btn.textContent = item.name + (item.price ? ' — TZSh ' + Number(item.price).toLocaleString() : '');
+                btn.onclick = () => {
+                    document.getElementById('labPriceItemId').value = item.id;
+                    document.getElementById('labSearchInput').value = item.name;
+                    document.getElementById('labSelectedName').textContent = '✓ ' + item.name;
+                    document.getElementById('labSelectedName').classList.remove('d-none');
+                    drop.classList.add('d-none');
+                };
+                drop.appendChild(btn);
+            });
+            drop.classList.remove('d-none');
+        } catch (e) { console.error(e); }
+    }, 300);
+}
+
+function labEnsureItem() {
+    if (!document.getElementById('labPriceItemId').value) {
+        alert('Please select a lab test from the search dropdown.');
+        return false;
+    }
+    return true;
+}
+
+// ── Activate tab from URL param ─────────────────────────────────────────────
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab) {
+        const btn = document.getElementById(tab + '-tab');
+        if (btn) { btn.click(); }
+    }
+})();
+</script>
+</body>
+</html>

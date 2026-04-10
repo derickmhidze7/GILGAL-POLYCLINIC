@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{admin/fragments :: head(${pageTitle})}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{admin/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{admin/fragments :: topbar(${pageTitle})}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{admin/fragments :: alerts}"></th:block>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <span class="fw-semibold" th:text="${pageTitle}">Expense</span>
+                </div>
+                <div class="card-body">
+
+                    <!-- Determine form action: new vs edit -->
+                    <form th:action="${expenseForm.id != null}
+                                       ? @{/admin/expenses/{id}/edit(id=${expenseForm.id})}
+                                       : @{/admin/expenses/new}"
+                          method="post"
+                          th:object="${expenseForm}" novalidate>
+
+                        <div class="row g-3">
+
+                            <!-- Title -->
+                            <div class="col-12 col-md-8">
+                                <label class="form-label fw-semibold">
+                                    Title <span class="text-danger">*</span>
+                                </label>
+                                <div class="position-relative">
+                                    <input type="text" class="form-control"
+                                           th:field="*{title}"
+                                           th:classappend="${#fields.hasErrors('title')} ? 'is-invalid'"
+                                           placeholder="e.g. Monthly electricity bill"
+                                           autocomplete="off"/>
+                                    <div class="invalid-feedback" th:errors="*{title}"></div>
+                                    <!-- Autocomplete dropdown -->
+                                    <div id="itemSuggestDropdown"
+                                         class="dropdown-menu w-100 shadow-sm"
+                                         style="display:none; max-height:280px; overflow-y:auto; top:100%; left:0; position:absolute; z-index:1050;">
+                                    </div>
+                                </div>
+                                <small id="itemSuggestHint" class="text-primary fst-italic mt-1" style="display:none">
+                                    <i class="bi bi-search me-1"></i>Type a medicine or item name to search the price catalogue.
+                                </small>
+                            </div>
+
+                            <!-- Category -->
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-semibold">
+                                    Category <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select"
+                                        th:field="*{category}"
+                                        th:classappend="${#fields.hasErrors('category')} ? 'is-invalid'">
+                                    <option value="">-- Select category --</option>
+                                    <option th:each="cat : ${categories}"
+                                            th:value="${cat.name()}"
+                                            th:text="${cat.label}">Category</option>
+                                </select>
+                                <div class="invalid-feedback" th:errors="*{category}"></div>
+                            </div>
+
+                            <!-- Amount -->
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-semibold">
+                                    Amount (TZS /=) <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">TZS</span>
+                                    <input type="number" step="0.01" min="0.01" class="form-control"
+                                           th:field="*{amount}"
+                                           th:classappend="${#fields.hasErrors('amount')} ? 'is-invalid'"
+                                           placeholder="0.00"/>
+                                    <div class="invalid-feedback" th:errors="*{amount}"></div>
+                                </div>
+                            </div>
+
+                            <!-- Expense Date -->
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-semibold">
+                                    Expense Date <span class="text-danger">*</span>
+                                </label>
+                                <input type="date" class="form-control"
+                                       th:field="*{expenseDate}"
+                                       th:classappend="${#fields.hasErrors('expenseDate')} ? 'is-invalid'"/>
+                                <div class="invalid-feedback" th:errors="*{expenseDate}"></div>
+                            </div>
+
+                            <!-- Payment Method -->
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-semibold">
+                                    Payment Method <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select"
+                                        th:field="*{paymentMethod}"
+                                        th:classappend="${#fields.hasErrors('paymentMethod')} ? 'is-invalid'">
+                                    <option value="">-- Select method --</option>
+                                    <option th:each="pm : ${paymentMethods}"
+                                            th:value="${pm.name()}"
+                                            th:text="${pm.name().replace('_',' ')}">Method</option>
+                                </select>
+                                <div class="invalid-feedback" th:errors="*{paymentMethod}"></div>
+                            </div>
+
+                            <!-- Paid To -->
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-semibold">Paid To</label>
+                                <input type="text" class="form-control"
+                                       th:field="*{paidTo}"
+                                       placeholder="Vendor / Supplier name"/>
+                            </div>
+
+                            <!-- Receipt Number -->
+                            <div class="col-12 col-md-3">
+                                <label class="form-label fw-semibold">Receipt / Invoice #</label>
+                                <input type="text" class="form-control"
+                                       th:field="*{receiptNumber}"
+                                       placeholder="e.g. INV-00123"/>
+                            </div>
+
+                            <!-- Receipt File Upload -->
+                            <div class="col-12 col-md-3">
+                                <label class="form-label fw-semibold">Receipt File</label>
+                                <input type="file" class="form-control" name="receiptFile"
+                                       accept=".pdf,image/*"/>
+                                <small class="text-muted">PDF or image, max 10 MB</small>
+                                <div th:if="${expense != null and expense.receiptFilePath != null}"
+                                     class="mt-1">
+                                    <i class="bi bi-paperclip text-success"></i>
+                                    <small class="text-success">File already uploaded — upload new to replace</small>
+                                </div>
+                            </div>
+
+                            <!-- Recurring toggle -->
+                            <div class="col-12 col-md-3">
+                                <label class="form-label fw-semibold d-block">Recurring?</label>
+                                <div class="form-check form-switch mt-1">
+                                    <input class="form-check-input" type="checkbox"
+                                           th:field="*{recurring}" id="recurringCheck"/>
+                                    <label class="form-check-label" for="recurringCheck">
+                                        Yes, recurring
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Recurring Frequency (shown when recurring is checked) -->
+                            <div class="col-12 col-md-3" id="recurringFreqDiv">
+                                <label class="form-label fw-semibold">Frequency</label>
+                                <select class="form-select" th:field="*{recurringFrequency}">
+                                    <option value="">-- Select --</option>
+                                    <option th:each="rf : ${recurringOptions}"
+                                            th:value="${rf.name()}"
+                                            th:text="${rf.label}">Freq</option>
+                                </select>
+                            </div>
+
+                            <!-- Notes -->
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Notes</label>
+                                <textarea class="form-control" rows="3"
+                                          th:field="*{notes}"
+                                          placeholder="Additional details..."></textarea>
+                            </div>
+
+                            <!-- Recorded By (read-only) -->
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-semibold">Recorded By</label>
+                                <input type="text" class="form-control" readonly
+                                       sec:authentication="name" value=""/>
+                            </div>
+
+                        </div><!-- /row -->
+
+                        <div class="mt-4 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save me-1"></i>Save Expense
+                            </button>
+                            <a th:href="@{/admin/expenses}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-1"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{admin/fragments :: scripts}"></th:block>
+<script>
+(function () {
+    /* ── Recurring-frequency toggle ─────────────────────────────────── */
+    const check   = document.getElementById('recurringCheck');
+    const freqDiv = document.getElementById('recurringFreqDiv');
+    function toggleFreq() { freqDiv.style.display = check.checked ? '' : 'none'; }
+    check.addEventListener('change', toggleFreq);
+    toggleFreq();
+
+    /* ── Price-catalogue autocomplete ───────────────────────────────── */
+    // Categories that should trigger pharmacy/lab item suggestions
+    const SUGGEST_CATS = ['PHARMACY_RESTOCK', 'MEDICAL_SUPPLIES', 'EQUIPMENT', 'LAB_SUPPLIES'];
+
+    // th:field="*{category}" → id="category"  |  th:field="*{title}" → id="title"
+    const catSel    = document.getElementById('category');
+    const titleInp  = document.getElementById('title');
+    const amtInp    = document.getElementById('amount');
+    const dropdown  = document.getElementById('itemSuggestDropdown');
+    const hint      = document.getElementById('itemSuggestHint');
+    let   debounce  = null;
+
+    function isSuggestCat() {
+        return catSel && SUGGEST_CATS.includes(catSel.value);
+    }
+
+    function closeDropdown() {
+        dropdown.style.display = 'none';
+        dropdown.innerHTML     = '';
+    }
+
+    function applySelection(name, price) {
+        titleInp.value = name;
+        // Pre-fill amount only if still empty or zero
+        if (amtInp && (!amtInp.value || parseFloat(amtInp.value) === 0)) {
+            amtInp.value = price;
+        }
+        closeDropdown();
+        titleInp.focus();
+    }
+
+    function renderItems(items) {
+        dropdown.innerHTML = '';
+        if (!items || items.length === 0) { closeDropdown(); return; }
+
+        items.forEach(item => {
+            const li = document.createElement('li');
+            const a  = document.createElement('a');
+            a.href      = '#';
+            a.className = 'dropdown-item d-flex justify-content-between align-items-center py-2';
+
+            const left = document.createElement('span');
+            left.innerHTML = item.classification
+                ? `${escHtml(item.name)} <small class="text-muted ms-1">${escHtml(item.classification)}</small>`
+                : escHtml(item.name);
+
+            const badge = document.createElement('span');
+            badge.className = 'badge bg-light text-dark border ms-2 text-nowrap';
+            badge.textContent = 'TZS ' + Number(item.price).toLocaleString();
+
+            a.appendChild(left);
+            a.appendChild(badge);
+            // mousedown fires before blur so selection is captured before input loses focus
+            a.addEventListener('mousedown', e => {
+                e.preventDefault();
+                applySelection(item.name, item.price);
+            });
+            li.appendChild(a);
+            dropdown.appendChild(li);
+        });
+
+        dropdown.style.display = 'block';
+    }
+
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function fetchSuggestions(q) {
+        const cat = catSel ? catSel.value : '';
+        fetch(`/admin/expenses/item-suggest?q=${encodeURIComponent(q)}&cat=${encodeURIComponent(cat)}`)
+            .then(r => r.ok ? r.json() : [])
+            .then(renderItems)
+            .catch(() => {});
+    }
+
+    /* category change → show/hide hint */
+    if (catSel) {
+        catSel.addEventListener('change', () => {
+            if (isSuggestCat()) {
+                hint.style.display = '';
+            } else {
+                hint.style.display = 'none';
+                closeDropdown();
+            }
+        });
+        // initialise hint for pre-selected category (edit mode)
+        if (isSuggestCat()) hint.style.display = '';
+    }
+
+    /* title typing → fetch suggestions */
+    if (titleInp) {
+        titleInp.addEventListener('input', function () {
+            clearTimeout(debounce);
+            if (!isSuggestCat()) { closeDropdown(); return; }
+            const q = this.value.trim();
+            if (q.length < 2) { closeDropdown(); return; }
+            debounce = setTimeout(() => fetchSuggestions(q), 280);
+        });
+
+        titleInp.addEventListener('blur', () => {
+            // delay so mousedown on a suggestion fires first
+            setTimeout(closeDropdown, 220);
+        });
+
+        titleInp.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeDropdown();
+            if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && dropdown.style.display === 'block') {
+                e.preventDefault();
+                const links = [...dropdown.querySelectorAll('a.dropdown-item')];
+                if (!links.length) return;
+                const cur = document.activeElement;
+                const idx = links.indexOf(cur);
+                const next = e.key === 'ArrowDown'
+                    ? links[idx + 1] || links[0]
+                    : links[idx - 1] || links[links.length - 1];
+                next.focus();
+            }
+        });
+    }
+})();
+</script>
+</body>
+</html>

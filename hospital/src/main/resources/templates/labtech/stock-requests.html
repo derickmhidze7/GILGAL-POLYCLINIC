@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{labtech/fragments :: head('Stock Requests')}"></th:block>
+</head>
+<body>
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{labtech/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{labtech/fragments :: topbar('Stock Requests')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{labtech/fragments :: alerts}"></th:block>
+
+            <!-- Header row -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="fw-semibold mb-0">
+                    <i class="bi bi-box-arrow-in-down me-2 text-success"></i>Stock Requests
+                </h5>
+                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#newRequestModal">
+                    <i class="bi bi-plus-circle me-2"></i>New Request
+                </button>
+            </div>
+
+            <!-- My Requests table -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-list-check me-2 text-primary"></i>My Requests
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Item</th>
+                                <th class="text-center">Qty Requested</th>
+                                <th class="text-center">Qty Released</th>
+                                <th>Status</th>
+                                <th>Request Notes</th>
+                                <th>Response</th>
+                                <th>Handled By</th>
+                                <th>Date</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="req : ${requests}">
+                                <td class="ps-3 fw-medium" th:text="${req.stockItem.priceItem.productName}">—</td>
+                                <td class="text-center" th:text="${req.requestedQuantity}">—</td>
+                                <td class="text-center" th:text="${req.releasedQuantity != null ? req.releasedQuantity : '—'}">—</td>
+                                <td>
+                                    <span th:class="${req.status.name() == 'RELEASED'} ? 'badge bg-success' :
+                                                   (${req.status.name() == 'REJECTED'} ? 'badge bg-danger' : 'badge bg-warning text-dark')"
+                                          th:text="${req.status}">—</span>
+                                </td>
+                                <td class="text-muted small" th:text="${req.requestNotes != null ? req.requestNotes : '—'}">—</td>
+                                <td class="text-muted small" th:text="${req.responseNotes != null ? req.responseNotes : '—'}">—</td>
+                                <td class="text-muted small"
+                                    th:text="${req.handledBy != null ? req.handledBy.firstName + ' ' + req.handledBy.lastName : '—'}">—</td>
+                                <td class="text-muted small"
+                                    th:text="${req.createdAt != null ? #temporals.format(req.createdAt, 'dd MMM yyyy HH:mm') : '—'}">—</td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(requests)}">
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox fs-3 d-block mb-2 opacity-50"></i>No requests yet.
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<!-- New Request Modal -->
+<div class="modal fade" id="newRequestModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-box-arrow-in-down me-2"></i>Request Stock from Pharmacy</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/labtech/stock-requests/new" method="post">
+                <div class="modal-body">
+
+                    <!-- Item search -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Item <span class="text-danger">*</span></label>
+                        <div class="position-relative">
+                            <div class="input-group">
+                                <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" id="stockSearch" class="form-control"
+                                       placeholder="Search pharmacy stock (min 2 chars)…" autocomplete="off">
+                            </div>
+                            <div id="stockDropdown"
+                                 class="list-group shadow border-0 mt-1"
+                                 style="display:none; position:absolute; width:100%; z-index:1060; max-height:200px; overflow-y:auto;">
+                            </div>
+                        </div>
+                        <input type="hidden" id="stockItemId" name="stockItemId" required>
+                        <div id="selectedItemDisplay" class="mt-2 d-none">
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fs-6" id="selectedItemName"></span>
+                            <small class="text-muted ms-2">Available: <strong id="selectedItemQty"></strong> units</small>
+                            <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-2" onclick="clearItem()">
+                                <i class="bi bi-x-circle"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Quantity -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Quantity Requested <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" name="requestedQuantity"
+                               id="requestedQuantity" min="1" required placeholder="Enter quantity…">
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" name="requestNotes" rows="2"
+                                  placeholder="Optional — e.g. purpose, urgency…"></textarea>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success" id="submitRequestBtn" disabled>
+                        <i class="bi bi-send me-2"></i>Submit Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{labtech/fragments :: scripts}"></th:block>
+<script>
+(function () {
+    const searchInput  = document.getElementById('stockSearch');
+    const dropdown     = document.getElementById('stockDropdown');
+    const hiddenId     = document.getElementById('stockItemId');
+    const display      = document.getElementById('selectedItemDisplay');
+    const nameEl       = document.getElementById('selectedItemName');
+    const qtyEl        = document.getElementById('selectedItemQty');
+    const submitBtn    = document.getElementById('submitRequestBtn');
+    const qtyInput     = document.getElementById('requestedQuantity');
+    let debounceTimer;
+
+    searchInput.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        const q = searchInput.value.trim();
+        if (q.length < 2) { dropdown.style.display = 'none'; return; }
+        debounceTimer = setTimeout(() => fetchStock(q), 280);
+    });
+
+    function fetchStock(q) {
+        fetch('/labtech/api/pharmacy-stock/search?q=' + encodeURIComponent(q))
+            .then(r => r.json())
+            .then(data => {
+                if (!data.length) { dropdown.style.display = 'none'; return; }
+                dropdown.innerHTML = data.map(item =>
+                    '<button type="button" class="list-group-item list-group-item-action py-2 px-3 d-flex justify-content-between" ' +
+                    'onclick=\'pickItem(' + JSON.stringify(item).replace(/'/g, "&#39;") + ')\'>' +
+                    '<span>' + item.name + '</span>' +
+                    '<span class="text-success fw-semibold ms-3">' + item.currentQuantity + ' in stock</span>' +
+                    '</button>'
+                ).join('');
+                dropdown.style.display = 'block';
+            })
+            .catch(() => { dropdown.style.display = 'none'; });
+    }
+
+    document.addEventListener('click', e => {
+        if (!dropdown.contains(e.target) && e.target !== searchInput)
+            dropdown.style.display = 'none';
+    });
+
+    window.pickItem = function(item) {
+        dropdown.style.display = 'none';
+        searchInput.value = '';
+        hiddenId.value = item.id;
+        nameEl.textContent = item.name;
+        qtyEl.textContent  = item.currentQuantity;
+        qtyInput.max       = item.currentQuantity;
+        display.classList.remove('d-none');
+        submitBtn.removeAttribute('disabled');
+    };
+
+    window.clearItem = function() {
+        hiddenId.value = '';
+        display.classList.add('d-none');
+        nameEl.textContent = '';
+        qtyEl.textContent  = '';
+        qtyInput.removeAttribute('max');
+        submitBtn.setAttribute('disabled', '');
+        searchInput.value = '';
+    };
+})();
+</script>
+</body>
+</html>

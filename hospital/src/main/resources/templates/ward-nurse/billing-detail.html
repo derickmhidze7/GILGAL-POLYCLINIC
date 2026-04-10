@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{ward-nurse/fragments :: head('Patient Bill')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{ward-nurse/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{ward-nurse/fragments :: topbar('Patient Bill Detail')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{ward-nurse/fragments :: alerts}"></th:block>
+
+            <!-- Back button -->
+            <div class="mb-3">
+                <a href="/ward-nurse/billing/ward" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Back to Ward Bills
+                </a>
+            </div>
+
+            <!-- Patient Header -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="text-muted small">Patient</div>
+                            <div class="fw-bold fs-5" th:text="${bill.patientFullName}">—</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted small">Ward</div>
+                            <div class="fw-semibold" th:text="${bill.ward ?: '—'}">—</div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="text-muted small">Bed</div>
+                            <div class="fw-semibold" th:text="${bill.bedNumber ?: '—'}">—</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted small">Admitted</div>
+                            <div class="fw-semibold"
+                                 th:text="${bill.admitDate != null ? #temporals.format(bill.admitDate, 'dd MMM yyyy HH:mm') : '—'}">—</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 1: Ward Daily Bill -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-building me-2 text-primary"></i>Ward Daily Bill
+                    <span th:if="${bill.wardBillStatus != null}"
+                          th:class="${bill.wardBillStatus.name() == 'PAID' ? 'badge bg-success ms-2' :
+                                      (bill.wardBillStatus.name() == 'PARTIALLY_PAID' ? 'badge bg-warning text-dark ms-2' :
+                                      (bill.wardBillStatus.name() == 'VOIDED' ? 'badge bg-secondary ms-2' :
+                                      'badge bg-warning text-dark ms-2'))}"
+                          th:text="${bill.wardBillStatus.name()}">ISSUED</span>
+                </div>
+                <div class="card-body">
+                    <div th:if="${bill.wardInvoiceNumber != null}">
+                        <small class="text-muted d-block mb-3">
+                            Invoice: <span class="font-monospace" th:text="${bill.wardInvoiceNumber}">—</span>
+                        </small>
+                        <div class="row mb-2">
+                            <div class="col-md-6">
+                                <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                                    <span class="text-muted">Ward charges</span>
+                                    <span class="fw-semibold"
+                                          th:text="${'TZSh ' + #numbers.formatDecimal(bill.wardBillTotal, 1, 'COMMA', 0, 'POINT')}">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between border-bottom pb-2 mb-2 text-success">
+                                    <span>Paid so far</span>
+                                    <span th:text="${'TZSh ' + #numbers.formatDecimal(bill.wardBillPaid, 1, 'COMMA', 0, 'POINT')}">0</span>
+                                </div>
+                                <div th:class="${bill.wardBillRemaining().compareTo(T(java.math.BigDecimal).ZERO) > 0}
+                                              ? 'd-flex justify-content-between fw-bold border-2 border-warning rounded p-2 bg-warning-subtle'
+                                              : 'd-flex justify-content-between fw-bold'">
+                                    <span>Outstanding balance</span>
+                                    <span th:class="${bill.wardBillRemaining().compareTo(T(java.math.BigDecimal).ZERO) > 0} ? 'text-warning' : 'text-success'"
+                                          th:text="${'TZSh ' + #numbers.formatDecimal(bill.wardBillRemaining(), 1, 'COMMA', 0, 'POINT')}">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="alert alert-light border mt-3 mb-0 py-2 small">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Daily rate: <strong th:text="${'TZSh ' + #numbers.formatDecimal(bill.wardDailyRate, 1, 'COMMA', 0, 'POINT') + '/day'}"></strong>
+                            &mdash; Days accrued: <strong th:text="${bill.daysAccrued}"></strong>.
+                            Charges are updated every day at 10:00 AM.
+                        </div>
+                    </div>
+                    <div th:unless="${bill.wardInvoiceNumber != null}" class="text-muted">
+                        <i class="bi bi-dash-circle me-1"></i>No ward invoice found.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: Surgery Items -->
+            <div th:if="${!#lists.isEmpty(bill.surgeries)}" class="mb-4">
+                <div th:each="surg : ${bill.surgeries}" class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-light fw-semibold">
+                        <i class="bi bi-scissors me-2 text-secondary"></i>
+                        Surgery: <span th:text="${surg.procedureName ?: 'Unnamed'}">—</span>
+                        <small class="text-muted fw-normal ms-2"
+                               th:text="${surg.scheduledDate != null ? #temporals.format(surg.scheduledDate, 'dd MMM yyyy') : ''}"></small>
+                    </div>
+                    <div class="card-body">
+
+                        <!-- Pre-op Items -->
+                        <h6 class="fw-semibold text-secondary mb-2">
+                            <i class="bi bi-box-seam me-1"></i>Pre-op Items
+                        </h6>
+                        <div th:if="${!#lists.isEmpty(surg.preopItems)}" class="table-responsive mb-3">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="table-light">
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Type</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Unit Price</th>
+                                    <th class="text-end">Total</th>
+                                    <th class="text-center">Dispensed</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr th:each="item : ${surg.preopItems}">
+                                    <td th:text="${item.itemName}">—</td>
+                                    <td>
+                                        <span th:class="${item.isLabItem ? 'badge bg-info text-dark' : 'badge bg-primary'}"
+                                              th:text="${item.isLabItem ? 'Lab' : 'Pharmacy'}">—</span>
+                                    </td>
+                                    <td class="text-center" th:text="${item.quantity}">1</td>
+                                    <td class="text-end"
+                                        th:text="${'TZSh ' + #numbers.formatDecimal(item.unitPrice, 1, 'COMMA', 0, 'POINT')}">0</td>
+                                    <td class="text-end fw-semibold"
+                                        th:text="${'TZSh ' + #numbers.formatDecimal(item.total, 1, 'COMMA', 0, 'POINT')}">0</td>
+                                    <td class="text-center">
+                                        <span th:if="${item.dispensed}" class="badge bg-success">
+                                            <i class="bi bi-check"></i> Yes
+                                        </span>
+                                        <span th:unless="${item.dispensed}" class="badge bg-secondary">
+                                            No
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr class="table-light fw-semibold">
+                                    <td colspan="4" class="text-end">Pre-op Subtotal</td>
+                                    <td class="text-end"
+                                        th:text="${'TZSh ' + #numbers.formatDecimal(surg.preopSubtotal(), 1, 'COMMA', 0, 'POINT')}">0</td>
+                                    <td></td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p th:unless="${!#lists.isEmpty(surg.preopItems)}"
+                           class="text-muted small mb-3"><i class="bi bi-dash me-1"></i>No pre-op items recorded.</p>
+
+                        <!-- Post-op Items -->
+                        <h6 class="fw-semibold text-secondary mb-2">
+                            <i class="bi bi-capsule-pill me-1"></i>Post-op Items
+                        </h6>
+                        <div th:if="${!#lists.isEmpty(surg.postopItems)}" class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="table-light">
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Type</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Unit Price</th>
+                                    <th class="text-end">Total</th>
+                                    <th class="text-center">Dispensed</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr th:each="item : ${surg.postopItems}">
+                                    <td th:text="${item.itemName}">—</td>
+                                    <td>
+                                        <span th:class="${item.isLabItem ? 'badge bg-info text-dark' : 'badge bg-primary'}"
+                                              th:text="${item.isLabItem ? 'Lab' : 'Pharmacy'}">—</span>
+                                    </td>
+                                    <td class="text-center" th:text="${item.quantity}">1</td>
+                                    <td class="text-end"
+                                        th:text="${'TZSh ' + #numbers.formatDecimal(item.unitPrice, 1, 'COMMA', 0, 'POINT')}">0</td>
+                                    <td class="text-end fw-semibold"
+                                        th:text="${'TZSh ' + #numbers.formatDecimal(item.total, 1, 'COMMA', 0, 'POINT')}">0</td>
+                                    <td class="text-center">
+                                        <span th:if="${item.dispensed}" class="badge bg-success">
+                                            <i class="bi bi-check"></i> Yes
+                                        </span>
+                                        <span th:unless="${item.dispensed}" class="badge bg-secondary">
+                                            No
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr class="table-light fw-semibold">
+                                    <td colspan="4" class="text-end">Post-op Subtotal</td>
+                                    <td class="text-end"
+                                        th:text="${'TZSh ' + #numbers.formatDecimal(surg.postopSubtotal(), 1, 'COMMA', 0, 'POINT')}">0</td>
+                                    <td></td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p th:unless="${!#lists.isEmpty(surg.postopItems)}"
+                           class="text-muted small mb-0"><i class="bi bi-dash me-1"></i>No post-op items recorded.</p>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grand Total Card -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-calculator me-2 text-success"></i>Grand Total Summary
+                </div>
+                <div class="card-body">
+                    <div class="row justify-content-end">
+                        <div class="col-md-5">
+                            <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                                <span class="text-muted">Ward Bill Total</span>
+                                <span th:text="${'TZSh ' + #numbers.formatDecimal(bill.wardBillTotal, 1, 'COMMA', 0, 'POINT')}">0</span>
+                            </div>
+                            <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                                <span class="text-muted">Ward Bill Paid</span>
+                                <span class="text-success"
+                                      th:text="${'TZSh ' + #numbers.formatDecimal(bill.wardBillPaid, 1, 'COMMA', 0, 'POINT')}">0</span>
+                            </div>
+                            <div class="d-flex justify-content-between pt-2 fw-bold fs-5 text-danger">
+                                <span>Ward Balance Due</span>
+                                <span th:text="${'TZSh ' + #numbers.formatDecimal(bill.wardBillRemaining(), 1, 'COMMA', 0, 'POINT')}">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div th:if="${!#lists.isEmpty(bill.surgeries)}"
+                         class="alert alert-info mt-3 mb-0 small">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Surgery item totals are shown per procedure above.
+                        Contact the receptionist for a full consolidated invoice.
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{ward-nurse/fragments :: scripts}"></th:block>
+</body>
+</html>

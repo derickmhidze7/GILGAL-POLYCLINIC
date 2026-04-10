@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{pharmacist/fragments :: head('Dispense History')}"></th:block>
+</head>
+<body>
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{pharmacist/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{pharmacist/fragments :: topbar('Dispense History')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{pharmacist/fragments :: alerts}"></th:block>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-clock-history me-2 text-success"></i>Items I Have Dispensed</span>
+                    <button onclick="window.print()" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-printer me-1"></i>Print
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient</th>
+                                <th>Medication</th>
+                                <th>Batch / Stock</th>
+                                <th>Qty Dispensed</th>
+                                <th>Dispensing Notes</th>
+                                <th>Dispensed At</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(history)}">
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    No dispensing history yet.
+                                </td>
+                            </tr>
+                            <tr th:each="item, i : ${history}">
+                                <td th:text="${i.count}"></td>
+
+                                <!-- Patient column — V26 path -->
+                                <td th:if="${item.visitPrescription != null}">
+                                    <span th:text="${item.visitPrescription.medicalRecord.patient.firstName
+                                                    + ' ' + item.visitPrescription.medicalRecord.patient.lastName}"></span>
+                                    <br/>
+                                    <small class="text-muted"
+                                           th:text="${item.visitPrescription.medicalRecord.patient.nationalId}"></small>
+                                    <br/>
+                                    <span class="badge bg-info text-dark" style="font-size:.65rem">Visit Rx</span>
+                                </td>
+                                <!-- Patient column — legacy path -->
+                                <td th:if="${item.visitPrescription == null}">
+                                    <span th:text="${item.prescription?.medicalRecord?.patient?.firstName
+                                                    + ' ' + item.prescription?.medicalRecord?.patient?.lastName}"></span>
+                                    <br/>
+                                    <small class="text-muted"
+                                           th:text="${item.prescription?.medicalRecord?.patient?.nationalId}"></small>
+                                </td>
+
+                                <!-- Medication column — V26 path -->
+                                <td th:if="${item.visitPrescription != null}">
+                                    <strong th:text="${item.visitPrescription.priceItem != null
+                                                       ? item.visitPrescription.priceItem.productName
+                                                       : item.visitPrescription.medicationName}"></strong>
+                                    <br/>
+                                    <small class="text-muted"
+                                           th:text="${item.visitPrescription.priceItem?.classification}"></small>
+                                </td>
+                                <!-- Medication column — legacy path -->
+                                <td th:if="${item.visitPrescription == null}">
+                                    <strong th:text="${item.prescription?.medication?.genericName}"></strong>
+                                    <span th:if="${item.prescription?.medication?.brandName != null}"
+                                          class="text-muted small ms-1"
+                                          th:text="'(' + ${item.prescription.medication.brandName} + ')'"></span>
+                                    <br/>
+                                    <small class="text-muted"
+                                           th:text="${item.inventoryItem?.medication?.form}"></small>
+                                </td>
+
+                                <!-- Batch column -->
+                                <td>
+                                    <span th:if="${item.stockBatch != null}"
+                                          th:text="${item.stockBatch.batchNumber}"></span>
+                                    <span th:if="${item.stockBatch == null}"
+                                          th:text="${item.inventoryItem?.batchNumber}"></span>
+                                </td>
+
+                                <td th:text="${item.quantityDispensed}"></td>
+                                <td th:text="${item.dispensingNotes != null ? item.dispensingNotes : '—'}"></td>
+                                <td th:text="${#temporals.format(item.dispensedAt,'dd MMM yyyy HH:mm')}"></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{pharmacist/fragments :: scripts}"></th:block>
+</body>
+</html>

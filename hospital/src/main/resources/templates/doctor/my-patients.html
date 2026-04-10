@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{doctor/fragments :: head('My Patients')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{doctor/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{doctor/fragments :: topbar('My Patients')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{doctor/fragments :: alerts}"></th:block>
+
+            <!-- Header row -->
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h5 class="fw-bold mb-0"><i class="bi bi-people-fill text-primary me-2"></i>My Patients</h5>
+                    <small class="text-muted">All patients you have consulted (most recent 50)</small>
+                </div>
+                <span class="badge bg-primary fs-6" th:text="${#lists.size(myPatients)} + ' record(s)'">0 records</span>
+            </div>
+
+            <!-- Search & filter bar -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body py-2">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-12 col-md-5">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white border-end-0">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <input type="text" id="patientSearch" class="form-control border-start-0"
+                                       placeholder="Search by name, ID, or diagnosis…"
+                                       oninput="filterTable()"/>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <select id="statusFilter" class="form-select form-select-sm" onchange="filterTable()">
+                                <option value="">All Statuses</option>
+                                <option value="DRAFT">Draft</option>
+                                <option value="LOCKED">Locked</option>
+                                <option value="FINALIZED">Finalized</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <select id="dispositionFilter" class="form-select form-select-sm" onchange="filterTable()">
+                                <option value="">All Dispositions</option>
+                                <option value="DISCHARGED">Discharged</option>
+                                <option value="ADMITTED">Admitted</option>
+                                <option value="REFERRED">Referred</option>
+                                <option value="FOLLOW_UP">Follow-up</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-1 text-end">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="clearFilters()" title="Clear filters">
+                                <i class="bi bi-x-circle"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Patients table -->
+            <div class="card border-0 shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="patientsTable">
+                        <thead class="table-light">
+                        <tr>
+                            <th style="width:3rem">#</th>
+                            <th>Patient</th>
+                            <th>Date of Birth</th>
+                            <th>Visit Date</th>
+                            <th>Provisional Diagnosis</th>
+                            <th>Disposition</th>
+                            <th>Status</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                        </thead>
+                        <tbody id="patientsBody">
+
+                        <!-- Empty state -->
+                        <tr th:if="${#lists.isEmpty(myPatients)}" id="emptyRow">
+                            <td colspan="8" class="text-center text-muted py-5">
+                                <i class="bi bi-person-x fs-2 d-block mb-2"></i>
+                                You have not attended any patients yet.
+                            </td>
+                        </tr>
+
+                        <tr th:each="rec, iter : ${myPatients}"
+                            th:attr="data-name=${rec.patient.firstName + ' ' + rec.patient.lastName},
+                                     data-id=${rec.patient.nationalId},
+                                     data-diagnosis=${rec.provisionalDiagnosis},
+                                     data-status=${rec.consultationStatus},
+                                     data-disposition=${rec.nextStep}">
+                            <td class="text-muted" th:text="${iter.count}">1</td>
+
+                            <!-- Patient -->
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center
+                                                justify-content-center flex-shrink-0"
+                                         style="width:36px;height:36px;font-size:.85rem;font-weight:600"
+                                         th:text="${rec.patient.firstName.substring(0,1).toUpperCase()}">A</div>
+                                    <div>
+                                        <div class="fw-semibold"
+                                             th:text="${rec.patient.firstName + ' ' + rec.patient.lastName}">—</div>
+                                        <small class="text-muted" th:text="${rec.patient.nationalId}">—</small>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <!-- DOB -->
+                            <td th:text="${rec.patient.dateOfBirth != null
+                                          ? #temporals.format(rec.patient.dateOfBirth, 'dd MMM yyyy') : '—'}">—</td>
+
+                            <!-- Visit date -->
+                            <td th:text="${rec.visitDate != null
+                                          ? #temporals.format(rec.visitDate, 'dd MMM yyyy HH:mm') : '—'}">—</td>
+
+                            <!-- Diagnosis -->
+                            <td>
+                                <span th:if="${rec.provisionalDiagnosis != null}"
+                                      th:text="${rec.provisionalDiagnosis}">—</span>
+                                <span th:if="${rec.provisionalDiagnosis == null}"
+                                      class="text-muted fst-italic">Not recorded</span>
+                            </td>
+
+                            <!-- Disposition -->
+                            <td>
+                                <span th:if="${rec.nextStep != null}"
+                                      class="badge bg-info text-dark"
+                                      th:text="${rec.nextStep}">—</span>
+                                <span th:if="${rec.nextStep == null}" class="text-muted">—</span>
+                            </td>
+
+                            <!-- Status -->
+                            <td>
+                                <span class="badge"
+                                      th:classappend="${rec.consultationStatus.name() == 'FINALIZED'} ? 'bg-success'
+                                                    : (${rec.consultationStatus.name() == 'LOCKED'}    ? 'bg-secondary'
+                                                    : 'bg-warning text-dark')"
+                                      th:text="${rec.consultationStatus}">—</span>
+                            </td>
+
+                            <!-- Action -->
+                            <td class="text-end">
+                                <div class="d-flex gap-1 justify-content-end">
+                                    <a th:if="${rec.appointment != null}"
+                                       th:href="@{/doctor/consultation/{id}(id=${rec.appointment.id})}"
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye me-1"></i>View
+                                    </a>
+                                    <a th:href="@{/doctor/patients/{id}/journey(id=${rec.patient.id})}"
+                                       class="btn btn-sm btn-outline-info" title="Full patient journey">
+                                        <i class="bi bi-clock-history me-1"></i>Journey
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- No-results row (hidden by default) -->
+                <div id="noResults" class="text-center text-muted py-5 d-none">
+                    <i class="bi bi-search fs-2 d-block mb-2"></i>
+                    No patients match your search.
+                </div>
+            </div><!-- end card -->
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{doctor/fragments :: scripts}"></th:block>
+
+<script>
+    function filterTable() {
+        const search      = document.getElementById('patientSearch').value.toLowerCase();
+        const statusVal   = document.getElementById('statusFilter').value.toUpperCase();
+        const dispositionVal = document.getElementById('dispositionFilter').value.toUpperCase();
+
+        const rows   = document.querySelectorAll('#patientsBody tr[data-name]');
+        let visible  = 0;
+
+        rows.forEach(row => {
+            const name      = (row.dataset.name       || '').toLowerCase();
+            const id        = (row.dataset.id         || '').toLowerCase();
+            const diagnosis = (row.dataset.diagnosis  || '').toLowerCase();
+            const status    = (row.dataset.status     || '').toUpperCase();
+            const disp      = (row.dataset.disposition|| '').toUpperCase();
+
+            const matchSearch      = !search      || name.includes(search) || id.includes(search) || diagnosis.includes(search);
+            const matchStatus      = !statusVal   || status === statusVal;
+            const matchDisposition = !dispositionVal || disp.includes(dispositionVal);
+
+            if (matchSearch && matchStatus && matchDisposition) {
+                row.style.display = '';
+                visible++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        document.getElementById('noResults').classList.toggle('d-none', visible > 0 || rows.length === 0);
+    }
+
+    function clearFilters() {
+        document.getElementById('patientSearch').value   = '';
+        document.getElementById('statusFilter').value     = '';
+        document.getElementById('dispositionFilter').value = '';
+        filterTable();
+    }
+</script>
+</body>
+</html>

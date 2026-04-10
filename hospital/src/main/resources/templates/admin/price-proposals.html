@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{admin/fragments :: head('Price Proposals')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{admin/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{admin/fragments :: topbar('Price Proposals')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{admin/fragments :: alerts}"></th:block>
+
+            <!-- Page header -->
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-patch-check-fill text-warning me-2"></i>Price Proposals
+                    </h5>
+                    <small class="text-muted">Review and approve/reject item additions and price changes submitted by pharmacists</small>
+                </div>
+                <span class="badge bg-warning text-dark fs-6"
+                      th:text="${pendingCount} + ' pending'">0 pending</span>
+            </div>
+
+            <!-- Filter tabs -->
+            <ul class="nav nav-tabs mb-3" id="proposalTabs">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#pending">
+                        Pending
+                        <span class="badge bg-warning text-dark ms-1" th:text="${pendingCount}">0</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#allHistory">All History</a>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+
+                <!-- ─── PENDING tab ─────────────────────────────────────────────── -->
+                <div class="tab-pane fade show active" id="pending">
+                    <div th:if="${#lists.isEmpty(proposals.?[status.name() == 'PENDING'])}"
+                         class="text-center py-5 text-muted">
+                        <i class="bi bi-patch-check display-1"></i>
+                        <p class="mt-3">No pending proposals — all caught up!</p>
+                    </div>
+
+                    <div th:each="p : ${proposals}"
+                         th:if="${p.status.name() == 'PENDING'}"
+                         class="card border-0 shadow-sm mb-3">
+                        <div class="card-header d-flex align-items-center justify-content-between py-2 bg-light">
+                            <div>
+                                <strong th:text="${p.productName}"></strong>
+                                <span th:if="${p.type != null}"
+                                      class="badge ms-2"
+                                      th:classappend="${p.type == 'LABORATORY'} ? 'bg-success' : 'bg-primary'"
+                                      th:text="${p.type}"></span>
+                                <span th:if="${p.priceItem == null}"
+                                      class="badge bg-info ms-2">New Item</span>
+                                <span th:if="${p.priceItem != null}"
+                                      class="badge bg-secondary ms-2">Price / Detail Change</span>
+                            </div>
+                            <small class="text-muted"
+                                   th:text="${#temporals.format(p.createdAt, 'dd MMM yyyy HH:mm')}"></small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3 align-items-center">
+                                <div class="col-md-5">
+                                    <table class="table table-sm table-borderless mb-0 small">
+                                        <tr>
+                                            <td class="text-muted pe-2 fw-semibold">Product Code</td>
+                                            <td th:text="${p.productCode ?: '—'}"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted pe-2 fw-semibold">Item ID</td>
+                                            <td th:text="${p.itemId ?: '—'}"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted pe-2 fw-semibold">Classification</td>
+                                            <td th:text="${p.classification ?: '—'}"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted pe-2 fw-semibold">Category</td>
+                                            <td th:text="${p.category ?: '—'}"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted pe-2 fw-semibold">Proposed by</td>
+                                            <td th:text="${p.proposedBy != null ? p.proposedBy.firstName + ' ' + p.proposedBy.lastName : '—'}"></td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <div class="col-md-3 text-center">
+                                    <div class="p-3 rounded bg-light">
+                                        <div class="text-muted small mb-1">Current Price</div>
+                                        <div class="fs-5 text-secondary fw-semibold"
+                                             th:text="${p.currentPrice != null ? #numbers.formatDecimal(p.currentPrice, 1, 'COMMA', 2, 'POINT') : 'New Item'}"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-1 text-center">
+                                    <i class="bi bi-arrow-right fs-4 text-muted"></i>
+                                </div>
+                                <div class="col-md-3 text-center">
+                                    <div class="p-3 rounded border border-success">
+                                        <div class="text-muted small mb-1">Proposed Price</div>
+                                        <div class="fs-5 text-success fw-bold"
+                                             th:text="${#numbers.formatDecimal(p.proposedPrice, 1, 'COMMA', 2, 'POINT')}"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action row -->
+                            <div class="d-flex gap-2 mt-3 pt-3 border-top">
+                                <!-- Approve -->
+                                <form th:action="@{/admin/price-proposals/{id}/approve(id=${p.id})}" method="post" class="d-inline">
+                                    <button type="submit" class="btn btn-success btn-sm"
+                                            onclick="return confirm('Approve this proposal and make it live?')">
+                                        <i class="bi bi-check-lg me-1"></i>Approve
+                                    </button>
+                                </form>
+                                <!-- Reject -->
+                                <button class="btn btn-danger btn-sm reject-btn"
+                                        th:attr="data-id=${p.id}"
+                                        data-bs-toggle="modal" data-bs-target="#rejectModal">
+                                    <i class="bi bi-x-lg me-1"></i>Reject
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div><!-- /pending tab -->
+
+                <!-- ─── ALL HISTORY tab ─────────────────────────────────────────── -->
+                <div class="tab-pane fade" id="allHistory">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle small mb-0">
+                                    <thead class="table-light">
+                                    <tr>
+                                        <th>Product Name</th>
+                                        <th>Code</th>
+                                        <th class="text-end">Current</th>
+                                        <th class="text-end">Proposed</th>
+                                        <th>Proposed By</th>
+                                        <th>Submitted</th>
+                                        <th class="text-center">Status</th>
+                                        <th>Reviewed By</th>
+                                        <th>Reviewed</th>
+                                        <th>Rejection Reason</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr th:if="${#lists.isEmpty(proposals)}">
+                                        <td colspan="10" class="text-center text-muted py-4">No proposals yet.</td>
+                                    </tr>
+                                    <tr th:each="p : ${proposals}"
+                                        th:classappend="${p.status.name() == 'APPROVED'} ? 'table-success' :
+                                                         (${p.status.name() == 'REJECTED'} ? 'table-danger' : '')">
+                                        <td>
+                                            <span th:text="${p.productName}"></span>
+                                            <small th:if="${p.priceItem == null}" class="badge bg-info ms-1">New</small>
+                                        </td>
+                                        <td th:text="${p.productCode ?: '—'}"></td>
+                                        <td class="text-end"
+                                            th:text="${p.currentPrice != null ? #numbers.formatDecimal(p.currentPrice, 1, 'COMMA', 2, 'POINT') : '—'}"></td>
+                                        <td class="text-end fw-semibold"
+                                            th:text="${#numbers.formatDecimal(p.proposedPrice, 1, 'COMMA', 2, 'POINT')}"></td>
+                                        <td th:text="${p.proposedBy != null ? p.proposedBy.firstName + ' ' + p.proposedBy.lastName : '—'}"></td>
+                                        <td th:text="${#temporals.format(p.createdAt, 'dd MMM yyyy')}"></td>
+                                        <td class="text-center">
+                                            <span class="badge"
+                                                  th:classappend="${p.status.name() == 'APPROVED'} ? 'bg-success'
+                                                               : (${p.status.name() == 'REJECTED'} ? 'bg-danger' : 'bg-warning text-dark')"
+                                                  th:text="${p.status.name()}"></span>
+                                        </td>
+                                        <td th:text="${p.reviewedBy != null ? p.reviewedBy.firstName + ' ' + p.reviewedBy.lastName : '—'}"></td>
+                                        <td th:text="${p.reviewedAt != null ? #temporals.format(p.reviewedAt, 'dd MMM yyyy') : '—'}"></td>
+                                        <td class="text-danger small" th:text="${p.rejectionReason ?: '—'}"></td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div><!-- /all history tab -->
+
+            </div><!-- /tab-content -->
+
+        </main>
+    </div>
+</div>
+
+<!-- ===== Reject Modal ===== -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="rejectForm" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">
+                        <i class="bi bi-x-circle-fill me-2"></i>Reject Proposal
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label fw-semibold">Reason for rejection</label>
+                    <textarea class="form-control" name="reason" rows="3"
+                              placeholder="Explain why this proposal is being rejected…"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-lg me-1"></i>Confirm Rejection
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{admin/fragments :: scripts}"></th:block>
+<script>
+document.querySelectorAll('.reject-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        document.getElementById('rejectForm').action = '/admin/price-proposals/' + id + '/reject';
+    });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{admin/fragments :: head('Approval of Cancellation')}"></th:block>
+    <style>
+        .reason-cell {
+            max-width: 260px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{admin/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{admin/fragments :: topbar('Approval of Cancellation')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{admin/fragments :: alerts}"></th:block>
+
+            <!-- Page header -->
+            <div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-2">
+                <div>
+                    <h5 class="mb-0 fw-bold">
+                        <i class="bi bi-x-circle-fill me-2 text-danger"></i>Approval of Cancellation
+                    </h5>
+                    <small class="text-muted">
+                        Review and approve or reject invoice cancellation requests submitted by receptionists.
+                    </small>
+                </div>
+                <span th:if="${pendingCancellations > 0}"
+                      class="badge bg-danger fs-6 px-3 py-2"
+                      th:text="${pendingCancellations} + ' Pending'"></span>
+                <span th:if="${pendingCancellations == 0}"
+                      class="badge bg-success fs-6 px-3 py-2">All Clear</span>
+            </div>
+
+            <!-- Table card -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Invoice #</th>
+                                    <th>Patient</th>
+                                    <th>Amount</th>
+                                    <th>Requested By</th>
+                                    <th>Requested At</th>
+                                    <th>Reason</th>
+                                    <th class="text-center" style="width:200px">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:if="${#lists.isEmpty(pendingInvoices)}">
+                                    <td colspan="7" class="text-center text-muted py-5">
+                                        <i class="bi bi-check-circle-fill text-success fs-3 d-block mb-2"></i>
+                                        No pending cancellation requests.
+                                    </td>
+                                </tr>
+                                <tr th:each="inv : ${pendingInvoices}">
+                                    <!-- Invoice number -->
+                                    <td class="ps-3 fw-semibold" th:text="${inv.invoiceNumber}">—</td>
+
+                                    <!-- Patient -->
+                                    <td th:text="${inv.patient.firstName + ' ' + inv.patient.lastName}">—</td>
+
+                                    <!-- Amount -->
+                                    <td th:text="${#numbers.formatDecimal(inv.totalAmount, 1, 'COMMA', 2, 'POINT') + '/='}">—</td>
+
+                                    <!-- Requested by -->
+                                    <td>
+                                        <span th:if="${inv.cancellationRequestedBy != null}"
+                                              th:text="${inv.cancellationRequestedBy.username}">—</span>
+                                        <span th:if="${inv.cancellationRequestedBy == null}" class="text-muted">Unknown</span>
+                                    </td>
+
+                                    <!-- Requested at -->
+                                    <td th:text="${inv.cancellationRequestedAt != null
+                                                    ? #temporals.format(inv.cancellationRequestedAt, 'dd MMM yyyy, HH:mm')
+                                                    : '—'}">—</td>
+
+                                    <!-- Reason (truncated, click to expand) -->
+                                    <td class="reason-cell"
+                                        th:text="${inv.cancellationReason}"
+                                        th:title="${inv.cancellationReason}"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-placement="top">—</td>
+
+                                    <!-- Actions -->
+                                    <td class="text-center">
+                                        <div class="d-flex justify-content-center gap-2 flex-wrap">
+                                            <!-- Approve -->
+                                            <form th:action="@{/admin/invoice-cancellations/{id}/approve(id=${inv.id})}"
+                                                  method="post"
+                                                  onsubmit="return confirm('Approve cancellation of invoice ' + this.dataset.num + '? The invoice will become VOIDED.')"
+                                                  th:data-num="${inv.invoiceNumber}">
+                                                <button type="submit" class="btn btn-sm btn-success">
+                                                    <i class="bi bi-check-circle me-1"></i>Approve
+                                                </button>
+                                            </form>
+                                            <!-- Reject -->
+                                            <form th:action="@{/admin/invoice-cancellations/{id}/reject(id=${inv.id})}"
+                                                  method="post"
+                                                  onsubmit="return confirm('Reject cancellation of invoice ' + this.dataset.num + '? The invoice will become TERMINATED.')"
+                                                  th:data-num="${inv.invoiceNumber}">
+                                                <button type="submit" class="btn btn-sm btn-danger">
+                                                    <i class="bi bi-x-circle me-1"></i>Reject
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{admin/fragments :: scripts}"></th:block>
+<script>
+    // Bootstrap tooltips for truncated reason cells
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+        new bootstrap.Tooltip(el, { trigger: 'hover' });
+    });
+</script>
+</body>
+</html>

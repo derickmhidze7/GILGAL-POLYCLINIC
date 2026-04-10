@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{nurse/fragments :: head('Dashboard')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{nurse/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{nurse/fragments :: topbar('Triage Dashboard')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{nurse/fragments :: alerts}"></th:block>
+
+            <!-- Stat Cards -->
+            <div class="row g-4 mb-4">
+                <div class="col-12 col-sm-6 col-xl-4">
+                    <div class="stat-card stat-card--green">
+                        <div class="stat-card__icon"><i class="bi bi-clipboard2-pulse-fill"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value" th:text="${#lists.size(queue)}">0</div>
+                            <div class="stat-card__label">Awaiting Assessment</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-4">
+                    <div class="stat-card stat-card--blue" style="--card-color:#0d6efd">
+                        <div class="stat-card__icon"><i class="bi bi-person-check-fill"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value" th:text="${#lists.size(assessedQueue)}">0</div>
+                            <div class="stat-card__label">Assessed — Awaiting Doctor</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Awaiting Assessment Table -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-people-fill me-2 text-success"></i>Awaiting Triage Assessment
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient</th>
+                                <th>Date of Birth</th>
+                                <th>Phone</th>
+                                <th>Arrived At</th>
+                                <th>Status</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(queue)}">
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox fs-4 d-block mb-2"></i>
+                                    No patients waiting for assessment.
+                                </td>
+                            </tr>
+                            <tr th:each="appt, iter : ${queue}">
+                                <td th:text="${iter.count}">1</td>
+                                <td>
+                                    <strong th:text="${appt.patient.firstName + ' ' + appt.patient.lastName}">—</strong>
+                                </td>
+                                <td th:text="${appt.patient.dateOfBirth != null ? #temporals.format(appt.patient.dateOfBirth, 'dd MMM yyyy') : '—'}">—</td>
+                                <td th:text="${appt.patient.phone != null ? appt.patient.phone : '—'}">—</td>
+                                <td th:text="${#temporals.format(appt.scheduledDateTime, 'dd MMM yyyy HH:mm')}">—</td>
+                                <td>
+                                    <span class="badge bg-success" th:text="${appt.status}">—</span>
+                                </td>
+                                <td class="text-end">
+                                    <a th:href="@{/nurse/assessment/{id}(id=${appt.id})}"
+                                       class="btn btn-sm btn-primary">
+                                        <i class="bi bi-clipboard2-plus me-1"></i>Start Assessment
+                                    </a>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Link to Completed Assessments page -->
+            <div class="alert alert-info border-0 d-flex align-items-center gap-2 mb-0">
+                <i class="bi bi-info-circle-fill fs-5"></i>
+                <span>Patients who have completed triage assessment are listed under
+                    <a th:href="@{/nurse/completed-assessments}" class="alert-link">Completed Assessments</a>
+                    in the sidebar.</span>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{nurse/fragments :: scripts}"></th:block>
+</body>
+</html>

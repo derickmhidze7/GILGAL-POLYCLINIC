@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{admin/fragments :: head('Revenue Detail')}"></th:block>
+    <style>
+        /* ── Revenue Items detail page local styles ─────────────────── */
+        .rev-stat-card {
+            border-left: 4px solid;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(0,0,0,.07);
+        }
+        .rev-stat-card.c-total   { border-color: #2e7d32; }
+        .rev-stat-card.c-items   { border-color: #1565c0; }
+        .rev-stat-card .stat-label { font-size: .78rem; color: #666; text-transform: uppercase; letter-spacing: .04em; }
+        .rev-stat-card .stat-value { font-size: 1.45rem; font-weight: 700; color: #1b2a1c; margin: 0; }
+        .rev-stat-card .stat-sub   { font-size: .78rem; color: #888; }
+
+        .items-table thead th {
+            background: #f0f4f0;
+            font-size: .80rem;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: #444;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .items-table td { vertical-align: middle; font-size: .88rem; }
+        .items-table tbody tr:hover { background: #f5faf5; }
+        .items-table tfoot td { font-weight: 700; background: #f8fdf8; }
+
+        .status-badge {
+            display: inline-block;
+            padding: .25rem .55rem;
+            border-radius: 4px;
+            font-size: .75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+        .badge-paid    { background: #e8f5e9; color: #2e7d32; }
+        .badge-issued  { background: #e3f2fd; color: #1565c0; }
+        .badge-partial { background: #fff8e1; color: #f57f17; }
+        .badge-voided  { background: #fce4ec; color: #c62828; }
+
+        .breadcrumb { background: none; padding: 0; }
+        .breadcrumb-item + .breadcrumb-item::before { color: #aaa; }
+        .no-data-state { text-align: center; padding: 3rem; color: #999; }
+    </style>
+</head>
+<body>
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{admin/fragments :: sidebar(activePage='revenue')}"></th:block>
+    <div id="page-content">
+        <th:block th:replace="~{admin/fragments :: topbar('Revenue Items')}"></th:block>
+
+        <main class="main-content container-fluid py-4 px-4">
+
+            <!-- ── Breadcrumb ────────────────────────────────────────────── -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a th:href="@{/admin/revenue}" class="text-decoration-none">Revenue Analytics</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a th:href="@{/admin/revenue(filterType='month',year=${itemsReport.selectedYear},month=${itemsReport.selectedMonth})}"
+                           class="text-decoration-none"
+                           th:text="${itemsReport.periodLabel}">January 2026</a>
+                    </li>
+                    <li class="breadcrumb-item active" th:text="${itemsReport.categoryLabel}">Lab Tests</li>
+                </ol>
+            </nav>
+
+            <!-- ── Page heading ──────────────────────────────────────────── -->
+            <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+                <div>
+                    <h4 class="fw-bold mb-0">
+                        <i class="bi bi-receipt me-2 text-success"></i>
+                        <span th:text="${itemsReport.categoryLabel}">Category</span>
+                        &mdash;
+                        <span th:text="${itemsReport.periodLabel}">Period</span>
+                    </h4>
+                    <small class="text-muted">
+                        <span th:text="${itemsReport.itemCount}">0</span> line item(s) &nbsp;|&nbsp;
+                        <span th:text="${#temporals.format(itemsReport.fromDate,'dd MMM yyyy')}"></span>
+                        &ndash;
+                        <span th:text="${#temporals.format(itemsReport.toDate,'dd MMM yyyy')}"></span>
+                    </small>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a th:href="@{/admin/revenue(filterType='month',year=${itemsReport.selectedYear},month=${itemsReport.selectedMonth})}"
+                       class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Back
+                    </a>
+                    <button class="btn btn-sm btn-success" onclick="exportToExcel()">
+                        <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+                    </button>
+                </div>
+            </div>
+
+            <!-- ── Summary cards ─────────────────────────────────────────── -->
+            <div class="row g-3 mb-4">
+                <div class="col-sm-6 col-lg-3">
+                    <div class="rev-stat-card c-total p-3 h-100">
+                        <div class="stat-label">Total Revenue</div>
+                        <p class="stat-value"
+                           th:text="'TZS /= ' + ${#numbers.formatDecimal(itemsReport.grandTotal, 1, 'COMMA', 2, 'POINT')}">TZS /= 0.00</p>
+                        <div class="stat-sub" th:text="${itemsReport.categoryLabel}"></div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="rev-stat-card c-items p-3 h-100">
+                        <div class="stat-label">Line Items</div>
+                        <p class="stat-value" th:text="${#numbers.formatInteger(itemsReport.itemCount,1,'COMMA')}">0</p>
+                        <div class="stat-sub">for the selected period</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Items table ───────────────────────────────────────────── -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white d-flex align-items-center gap-2 fw-semibold">
+                    <i class="bi bi-list-ul text-success"></i>
+                    Items &mdash;
+                    <span th:text="${itemsReport.categoryLabel}">Category</span>
+                    <small class="text-muted fw-normal ms-1"
+                           th:text="'(' + ${itemsReport.periodLabel} + ')'"></small>
+                </div>
+                <div class="card-body p-0">
+
+                    <!-- Has data -->
+                    <div th:if="${not #lists.isEmpty(itemsReport.items)}">
+                        <div class="table-responsive">
+                            <table class="table items-table mb-0" id="tblItems">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-3">#</th>
+                                        <th>Invoice</th>
+                                        <th>Date</th>
+                                        <th>Patient</th>
+                                        <th>Item / Service</th>
+                                        <th class="text-end">Qty</th>
+                                        <th class="text-end">Unit Price</th>
+                                        <th class="text-end">Total</th>
+                                        <th>Staff Responsible</th>
+                                        <th>Role</th>
+                                        <th class="pe-3">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="item,stat : ${itemsReport.items}">
+                                        <td class="ps-3 text-muted"
+                                            th:text="${stat.count}">1</td>
+                                        <td>
+                                            <span class="font-monospace small"
+                                                  th:text="${item.invoiceNumber}">INV-001</span>
+                                        </td>
+                                        <td th:text="${#temporals.format(item.invoiceDate,'dd MMM yyyy')}">01 Jan 2026</td>
+                                        <td th:text="${item.patientName}">Patient Name</td>
+                                        <td th:text="${item.itemDescription}">Description</td>
+                                        <td class="text-end" th:text="${item.quantity}">1</td>
+                                        <td class="text-end"
+                                            th:text="${#numbers.formatDecimal(item.unitPrice,1,'COMMA',2,'POINT')}">0.00</td>
+                                        <td class="text-end fw-semibold"
+                                            th:text="${#numbers.formatDecimal(item.lineTotal,1,'COMMA',2,'POINT')}">0.00</td>
+                                        <td th:text="${item.staffName}">—</td>
+                                        <td>
+                                            <span class="text-muted small"
+                                                  th:text="${item.staffRole}">—</span>
+                                        </td>
+                                        <td class="pe-3">
+                                            <span class="status-badge"
+                                                  th:classappend="${item.invoiceStatus == 'PAID'} ? 'badge-paid'
+                                                                : (${item.invoiceStatus == 'ISSUED'} ? 'badge-issued'
+                                                                : (${item.invoiceStatus == 'PARTIALLY_PAID'} ? 'badge-partial'
+                                                                : 'badge-voided'))"
+                                                  th:text="${item.invoiceStatus.replace('_',' ')}">ISSUED</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td class="ps-3" colspan="7">
+                                            <i class="bi bi-funnel-fill text-success me-1"></i>Total
+                                        </td>
+                                        <td class="text-end"
+                                            th:text="${#numbers.formatDecimal(itemsReport.grandTotal,1,'COMMA',2,'POINT')}">0.00</td>
+                                        <td colspan="3" class="pe-3"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Empty state -->
+                    <div th:if="${#lists.isEmpty(itemsReport.items)}" class="no-data-state">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        No items found for
+                        <strong th:text="${itemsReport.categoryLabel}">this category</strong>
+                        in the selected period.
+                    </div>
+
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{admin/fragments :: scripts}"></th:block>
+
+<!-- SheetJS for browser-side Excel export -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+<script th:inline="javascript">
+/*<![CDATA[*/
+const PERIOD_LABEL    = /*[[${itemsReport.periodLabel}]]*/ 'Period';
+const CATEGORY_LABEL  = /*[[${itemsReport.categoryLabel}]]*/ 'Category';
+
+function exportToExcel() {
+    const wb   = XLSX.utils.book_new();
+    const tbl  = document.getElementById('tblItems');
+    if (!tbl) { alert('No data to export.'); return; }
+
+    const ws = XLSX.utils.table_to_sheet(tbl);
+
+    // Auto-width columns
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    const colWidths = [];
+    for (let C = range.s.c; C <= range.e.c; C++) {
+        let max = 10;
+        for (let R = range.s.r; R <= range.e.r; R++) {
+            const cell = ws[XLSX.utils.encode_cell({r: R, c: C})];
+            if (cell && cell.v) max = Math.max(max, String(cell.v).length + 2);
+        }
+        colWidths.push({wch: Math.min(max, 40)});
+    }
+    ws['!cols'] = colWidths;
+
+    const sheetName = (CATEGORY_LABEL + ' – ' + PERIOD_LABEL).substring(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, 'Revenue_' + CATEGORY_LABEL.replace(/[^a-zA-Z0-9]/g, '_') + '_' + PERIOD_LABEL.replace(/[^a-zA-Z0-9]/g, '_') + '.xlsx');
+}
+/*]]>*/
+</script>
+
+</body>
+</html>

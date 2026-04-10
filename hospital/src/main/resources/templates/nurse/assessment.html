@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{nurse/fragments :: head('Triage Assessment')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{nurse/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{nurse/fragments :: topbar('Triage Assessment')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{nurse/fragments :: alerts}"></th:block>
+
+            <!-- Patient Info Banner -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body d-flex align-items-center gap-4">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                        <i class="bi bi-person-fill fs-3 text-success"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-1" th:text="${patient.firstName + ' ' + patient.lastName}">Patient Name</h5>
+                        <span class="text-muted me-3">
+                            <i class="bi bi-calendar3 me-1"></i>
+                            <span th:text="${patient.dateOfBirth != null ? #temporals.format(patient.dateOfBirth, 'dd MMM yyyy') : '—'}">—</span>
+                        </span>
+                        <span class="text-muted me-3">
+                            <i class="bi bi-gender-ambiguous me-1"></i>
+                            <span th:text="${patient.gender}">—</span>
+                        </span>
+                        <span class="text-muted">
+                            <i class="bi bi-telephone me-1"></i>
+                            <span th:text="${patient.phone != null ? patient.phone : '—'}">—</span>
+                        </span>
+                    </div>
+                    <div class="ms-auto">
+                        <a th:href="@{/nurse/dashboard}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-arrow-left me-1"></i>Back to Queue
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ======================================================== -->
+            <!--  ASSESSMENT FORM                                          -->
+            <!-- ======================================================== -->
+            <form th:action="@{/nurse/assessment/{id}(id=${appointment.id})}" method="post">
+
+                <!-- ─── SECTION 1: VITAL SIGNS ─────────────────────────────── -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white">
+                        <span class="fw-semibold">
+                            <i class="bi bi-heart-pulse-fill text-danger me-2"></i>
+                            Section 1 — Vital Signs
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Chief Complaint -->
+                            <div class="col-12">
+                                <label for="chiefComplaint" class="form-label fw-semibold">
+                                    Chief Complaint <span class="text-danger">*</span>
+                                </label>
+                                <textarea class="form-control" id="chiefComplaint" name="chiefComplaint"
+                                          rows="2" maxlength="500" required
+                                          placeholder="What is the patient's main complaint? e.g. Chest pain, headache, difficulty breathing…"></textarea>
+                            </div>
+                            <!-- Blood Pressure -->
+                            <div class="col-12 col-md-6 col-xl-4">
+                                <label class="form-label fw-semibold">Blood Pressure (mmHg) <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" name="bloodPressureSystolic"
+                                           placeholder="Systolic" min="40" max="300" required/>
+                                    <span class="input-group-text">/</span>
+                                    <input type="number" class="form-control" name="bloodPressureDiastolic"
+                                           placeholder="Diastolic" min="20" max="200" required/>
+                                    <span class="input-group-text">mmHg</span>
+                                </div>
+                            </div>
+                            <!-- Pulse -->
+                            <div class="col-12 col-md-6 col-xl-4">
+                                <label for="pulseRate" class="form-label fw-semibold">Pulse Rate <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="pulseRate" name="pulseRate"
+                                           placeholder="e.g. 72" min="0" max="300" required/>
+                                    <span class="input-group-text">/min</span>
+                                </div>
+                            </div>
+                            <!-- Temperature -->
+                            <div class="col-12 col-md-6 col-xl-4">
+                                <label for="temperature" class="form-label fw-semibold">Temperature <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="number" step="0.1" class="form-control" id="temperature"
+                                           name="temperature" placeholder="e.g. 36.6" min="30" max="45" required/>
+                                    <span class="input-group-text">°C</span>
+                                </div>
+                            </div>
+                            <!-- Respiratory Rate -->
+                            <div class="col-12 col-md-6 col-xl-4">
+                                <label for="respiratoryRate" class="form-label fw-semibold">Respiratory Rate <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="respiratoryRate"
+                                           name="respiratoryRate" placeholder="e.g. 16" min="0" max="60" required/>
+                                    <span class="input-group-text">/min</span>
+                                </div>
+                            </div>
+                            <!-- SpO₂ -->
+                            <div class="col-12 col-md-6 col-xl-4">
+                                <label for="oxygenSaturation" class="form-label fw-semibold">SpO₂ (Saturation) <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="number" step="0.1" class="form-control" id="oxygenSaturation"
+                                           name="oxygenSaturation" placeholder="e.g. 98.0" min="0" max="100" required/>
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ─── SECTION 2: ANTHROPOMETRIC MEASURES ──────────────────── -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white">
+                        <span class="fw-semibold">
+                            <i class="bi bi-rulers text-primary me-2"></i>
+                            Section 2 — Anthropometric Measures
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3 align-items-end">
+                            <!-- Height -->
+                            <div class="col-12 col-md-4">
+                                <label for="height" class="form-label fw-semibold">Height <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="number" step="0.1" class="form-control" id="height" name="height"
+                                           placeholder="e.g. 170" min="30" max="250" oninput="calcBmi()" required/>
+                                    <span class="input-group-text">cm</span>
+                                </div>
+                            </div>
+                            <!-- Weight -->
+                            <div class="col-12 col-md-4">
+                                <label for="weight" class="form-label fw-semibold">Weight <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="number" step="0.1" class="form-control" id="weight" name="weight"
+                                           placeholder="e.g. 70" min="1" max="300" oninput="calcBmi()" required/>
+                                    <span class="input-group-text">kg</span>
+                                </div>
+                            </div>
+                            <!-- BMI (auto-calc) -->
+                            <div class="col-12 col-md-4">
+                                <label for="bmi" class="form-label fw-semibold">
+                                    BMI <small class="text-muted fw-normal">(auto-calculated)</small>
+                                </label>
+                                <div class="input-group">
+                                    <input type="number" step="0.1" class="form-control bg-light"
+                                           id="bmi" name="bmi" placeholder="—" readonly/>
+                                    <span class="input-group-text">kg/m²</span>
+                                </div>
+                                <div id="bmiCategory" class="form-text mt-1"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ─── SECTION 3: PATIENT REFERRAL ─────────────────────────── -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white">
+                        <span class="fw-semibold">
+                            <i class="bi bi-person-badge-fill text-primary me-2"></i>
+                            Section 3 — Patient Referral &amp; Triage Priority
+                        </span>
+                    </div>
+                    <div class="card-body">
+
+                        <!-- Fee info box -->
+                        <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
+                            <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
+                            <div>
+                                <strong>Consultation Fee Notice:</strong>
+                                Patient must pay the consultation fee to the Receptionist <em>before</em> seeing the doctor.
+                                <ul class="mb-0 mt-1">
+                                    <li>General Doctor: <strong>10,000/=</strong></li>
+                                    <li>Specialist Doctor: <strong>20,000/=</strong></li>
+                                </ul>
+                                An invoice will be automatically created when you save this assessment.
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- Refer to Doctor -->
+                            <div class="col-12 col-md-8">
+                                <label for="referredDoctorId" class="form-label fw-semibold">
+                                    Assign / Refer Patient To
+                                </label>
+                                <select class="form-select" id="referredDoctorId" name="referredDoctorId"
+                                        onchange="updateReferralType(this)">
+                                    <option value="">— Not referred (no charge) —</option>
+                                    <optgroup label="General Doctors (10,000/=)">
+                                        <option th:each="doc : ${doctors}"
+                                                th:if="${doc.staffRole.name() == 'DOCTOR'}"
+                                                th:value="${doc.id}"
+                                                th:data-role="${doc.staffRole.name()}"
+                                                th:text="${doc.firstName + ' ' + doc.lastName + ' — General | 10,000/='}">
+                                        </option>
+                                    </optgroup>
+                                    <optgroup label="Specialist Doctors (20,000/=)">
+                                        <option th:each="doc : ${doctors}"
+                                                th:if="${doc.staffRole.name() == 'SPECIALIST_DOCTOR'}"
+                                                th:value="${doc.id}"
+                                                th:data-role="${doc.staffRole.name()}"
+                                                th:text="${doc.firstName + ' ' + doc.lastName + ' — Specialist | 20,000/='}">
+                                        </option>
+                                    </optgroup>
+                                </select>
+                                <!-- Dynamically populated fee badge -->
+                                <div id="feePreview" class="mt-2" style="display:none;">
+                                    <span class="badge bg-warning text-dark fs-6" id="feeBadge"></span>
+                                </div>
+                            </div>
+                            <!-- Hidden referral type — auto-set by JS -->
+                            <input type="hidden" id="referralType" name="referralType"/>
+
+                            <!-- Triage Priority -->
+                            <div class="col-12 col-md-4">
+                                <label for="triagePriority" class="form-label fw-semibold">
+                                    Triage Priority <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="triagePriority" name="triagePriority" required>
+                                    <option value="">— Select Priority —</option>
+                                    <option th:each="p : ${priorityValues}"
+                                            th:value="${p.name()}"
+                                            th:text="${p.name()}"
+                                            th:classappend="${p.name() == 'IMMEDIATE'} ? 'text-danger fw-bold' :
+                                                           (${p.name() == 'URGENT'} ? 'text-warning fw-bold' : '')">
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- Notes -->
+                            <div class="col-12">
+                                <label for="notes" class="form-label fw-semibold">Additional Notes</label>
+                                <textarea class="form-control" id="notes" name="notes" rows="3"
+                                          placeholder="Any additional clinical notes…"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit -->
+                <div class="d-flex justify-content-end gap-3 mb-5">
+                    <a th:href="@{/nurse/dashboard}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle me-1"></i>Cancel
+                    </a>
+                    <button type="submit" class="btn btn-success px-4">
+                        <i class="bi bi-check-circle-fill me-2"></i>Save Assessment
+                    </button>
+                </div>
+
+            </form>
+        </main>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!--  JavaScript                                              -->
+<!-- ======================================================== -->
+<th:block th:replace="~{nurse/fragments :: scripts}"></th:block>
+
+<script>
+    /* ── BMI Calculation ───────────────────────────────────────── */
+    function calcBmi() {
+        const h = parseFloat(document.getElementById('height').value);
+        const w = parseFloat(document.getElementById('weight').value);
+        const bmiEl = document.getElementById('bmi');
+        const catEl = document.getElementById('bmiCategory');
+
+        if (h > 0 && w > 0) {
+            const hm = h / 100;
+            const bmi = (w / (hm * hm)).toFixed(1);
+            bmiEl.value = bmi;
+
+            // Category label
+            let cat = '', cls = '';
+            if (bmi < 18.5)       { cat = 'Underweight'; cls = 'text-warning'; }
+            else if (bmi < 25)    { cat = 'Normal weight'; cls = 'text-success'; }
+            else if (bmi < 30)    { cat = 'Overweight'; cls = 'text-warning'; }
+            else                   { cat = 'Obese'; cls = 'text-danger'; }
+            catEl.innerHTML = `<span class="${cls} fw-semibold">${cat}</span>`;
+        } else {
+            bmiEl.value = '';
+            catEl.innerHTML = '';
+        }
+    }
+
+    /* ── Referral type & fee preview ────────────────────────────── */
+    function updateReferralType(sel) {
+        const opt = sel.options[sel.selectedIndex];
+        const role = opt.getAttribute('data-role') || '';
+        document.getElementById('referralType').value = role;
+
+        const preview = document.getElementById('feePreview');
+        const badge   = document.getElementById('feeBadge');
+        if (role === 'SPECIALIST_DOCTOR') {
+            badge.textContent = 'Consultation fee: 20,000/= (Specialist)';
+            preview.style.display = 'block';
+        } else if (role === 'DOCTOR') {
+            badge.textContent = 'Consultation fee: 10,000/= (General)';
+            preview.style.display = 'block';
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+
+</script>
+</body>
+</html>

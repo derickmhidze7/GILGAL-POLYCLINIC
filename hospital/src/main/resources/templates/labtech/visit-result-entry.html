@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{labtech/fragments :: head('Enter Result')}"></th:block>
+</head>
+<body>
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{labtech/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{labtech/fragments :: topbar('Enter Lab Result')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{labtech/fragments :: alerts}"></th:block>
+
+            <!-- ═══ REQUEST INFO ══════════════════════════════════════════════ -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-info-circle-fill me-2 text-primary"></i>Request Information
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="text-muted small">Patient</label>
+                            <p class="mb-0 fw-semibold"
+                               th:text="${visitRequest.medicalRecord.patient.firstName + ' ' + visitRequest.medicalRecord.patient.lastName}"></p>
+                            <small class="text-muted"
+                                   th:text="${visitRequest.medicalRecord.patient.nationalId}"></small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="text-muted small">Test</label>
+                            <p class="mb-0 fw-semibold" th:text="${visitRequest.testName}"></p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="text-muted small">Urgency</label>
+                            <p class="mb-0">
+                                <span class="badge"
+                                      th:classappend="${visitRequest.urgency.name() == 'STAT'} ? 'bg-danger'
+                                                    : (${visitRequest.urgency.name() == 'URGENT'} ? 'bg-warning text-dark'
+                                                    : 'bg-secondary')"
+                                      th:text="${visitRequest.urgency}"></span>
+                            </p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="text-muted small">Status</label>
+                            <p class="mb-0">
+                                <span class="badge"
+                                      th:classappend="${visitRequest.status.name() == 'IN_PROGRESS'} ? 'bg-info text-dark'
+                                                    : (${visitRequest.status.name() == 'COMPLETED'} ? 'bg-success'
+                                                    : 'bg-secondary')"
+                                      th:text="${visitRequest.status}"></span>
+                            </p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="text-muted small">Special Instructions</label>
+                            <p class="mb-0 small"
+                               th:text="${visitRequest.specialInstructions != null ? visitRequest.specialInstructions : 'None'}"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ LOCKED NOTICE ════════════════════════════════════════════ -->
+            <div th:if="${visitRequest.status.name() == 'COMPLETED'}"
+                 class="alert alert-success mb-4">
+                <i class="bi bi-lock-fill me-2"></i>
+                This result has been submitted and locked. No further edits allowed.
+            </div>
+
+            <!-- ═══ READ-ONLY VIEW (COMPLETED) ═══════════════════════════════ -->
+            <div th:if="${visitRequest.status.name() == 'COMPLETED'}">
+
+                <!-- Sample info -->
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white fw-semibold">
+                        <i class="bi bi-droplet-half me-2 text-danger"></i>Sample Information
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="text-muted small">Sample Type</label>
+                                <p class="mb-0" th:text="${visitRequest.sampleType ?: '—'}"></p>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="text-muted small">Collected At</label>
+                                <p class="mb-0" th:text="${visitRequest.sampleCollectedAt != null ? #temporals.format(visitRequest.sampleCollectedAt,'dd MMM yyyy HH:mm') : '—'}"></p>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="text-muted small">Sample Quality</label>
+                                <p class="mb-0" th:text="${visitRequest.sampleQuality ?: '—'}"></p>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="text-muted small">Quality Note</label>
+                                <p class="mb-0" th:text="${visitRequest.sampleQualityNote ?: '—'}"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Method & Reagents -->
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white fw-semibold">
+                        <i class="bi bi-flask me-2 text-primary"></i>Method &amp; Reagents
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="text-muted small">Methodology</label>
+                                <p class="mb-0" th:text="${visitRequest.methodology ?: '—'}"></p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="text-muted small">Reagents Used</label>
+                                <p class="mb-0" th:text="${visitRequest.reagentsUsed ?: '—'}"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Parameters -->
+                <div class="card border-0 shadow-sm mb-3" th:if="${visitRequest.resultParameters != null and !visitRequest.resultParameters.isEmpty()}">
+                    <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-table me-2 text-success"></i>Test Parameters</span>
+                        <a th:if="${visitRequest.machinePdfData != null}"
+                           th:href="@{/labtech/visit-request/{id}/result/machine-pdf(id=${visitRequest.id})}"
+                           target="_blank" class="btn btn-sm btn-outline-danger py-0">
+                            <i class="bi bi-file-earmark-pdf me-1"></i>View Machine Output PDF
+                        </a>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-bordered table-hover align-middle mb-0">
+                            <thead class="table-light text-center">
+                                <tr>
+                                    <th>Parameter</th><th>Value</th><th>Unit</th>
+                                    <th>Reference Range</th><th>Flag</th><th>Method</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="p : ${visitRequest.resultParameters}">
+                                    <td th:text="${p.parameterName}"></td>
+                                    <td class="text-center fw-semibold" th:text="${p.resultValue ?: '—'}"></td>
+                                    <td class="text-center" th:text="${p.unit ?: '—'}"></td>
+                                    <td class="text-center" th:text="${p.referenceRange ?: '—'}"></td>
+                                    <td class="text-center">
+                                        <span class="badge"
+                                              th:classappend="${p.flag == 'H' or p.flag == 'C'} ? 'bg-danger'
+                                                            : (${p.flag == 'L'} ? 'bg-warning text-dark' : 'bg-success')"
+                                              th:text="${p.flag ?: 'N'}"></span>
+                                    </td>
+                                    <td th:text="${p.method ?: '—'}"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Findings -->
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white fw-semibold">
+                        <i class="bi bi-journal-text me-2 text-warning"></i>Findings &amp; Interpretation
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="text-muted small">Findings</label>
+                                <p class="mb-0" th:text="${visitRequest.findings ?: '—'}"></p>
+                            </div>
+                            <div class="col-12">
+                                <label class="text-muted small">Interpretation</label>
+                                <p class="mb-0" th:text="${visitRequest.interpretationText ?: '—'}"></p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="text-muted small">Reference Range Note</label>
+                                <p class="mb-0" th:text="${visitRequest.referenceRangeNote ?: '—'}"></p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="text-muted small">Conclusion</label>
+                                <p class="mb-0" th:text="${visitRequest.conclusion ?: '—'}"></p>
+                            </div>
+                        </div>
+                        <p class="mb-0 text-muted small mt-3">
+                            Completed:
+                            <span th:text="${visitRequest.completedAt != null ? #temporals.format(visitRequest.completedAt, 'dd MMM yyyy HH:mm') : '—'}"></span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Machine PDF standalone card (when parameters list is empty / not shown above) -->
+                <div th:if="${visitRequest.machinePdfData != null and (visitRequest.resultParameters == null or visitRequest.resultParameters.isEmpty())}"
+                     class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white fw-semibold">
+                        <i class="bi bi-cpu me-2 text-secondary"></i>Machine Output
+                    </div>
+                    <div class="card-body">
+                        <a th:href="@{/labtech/visit-request/{id}/result/machine-pdf(id=${visitRequest.id})}"
+                           target="_blank" class="btn btn-outline-danger">
+                            <i class="bi bi-file-earmark-pdf me-1"></i>View Machine Output PDF
+                        </a>
+                    </div>
+                </div>
+
+                <div class="mb-5">
+                    <a th:href="@{/labtech/dashboard}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- ═══ ENTRY FORM (NOT COMPLETED) ═══════════════════════════════ -->
+            <div th:if="${visitRequest.status.name() != 'COMPLETED'}">
+
+                <!-- hidden request id for JS -->
+                <input type="hidden" id="requestId" th:value="${visitRequest.id}"/>
+
+                <!-- Saved parameters for pre-fill -->
+                <script th:inline="javascript">
+                    /*<![CDATA[*/
+                    const _saved = {
+                        sampleType:        /*[[${visitRequest.sampleType}]]*/ '',
+                        sampleCollectedAt: /*[[${visitRequest.sampleCollectedAt != null ? #temporals.format(visitRequest.sampleCollectedAt, 'yyyy-MM-dd') + 'T' + #temporals.format(visitRequest.sampleCollectedAt, 'HH:mm') : ''}]]*/ '',
+                        sampleQuality:     /*[[${visitRequest.sampleQuality}]]*/ '',
+                        sampleQualityNote: /*[[${visitRequest.sampleQualityNote}]]*/ '',
+                        methodology:       /*[[${visitRequest.methodology}]]*/ '',
+                        reagentsUsed:      /*[[${visitRequest.reagentsUsed}]]*/ '',
+                        findings:          /*[[${visitRequest.findings}]]*/ '',
+                        interpretationText:/*[[${visitRequest.interpretationText}]]*/ '',
+                        referenceRangeNote:/*[[${visitRequest.referenceRangeNote}]]*/ '',
+                        conclusion:        /*[[${visitRequest.conclusion}]]*/ '',
+                        parameters:    /*[[${visitRequest.resultParameters}]]*/ [],
+                        machinePdfPath:/*[[${visitRequest.machinePdfData != null}]]*/ false
+                    };
+                    /*]]>*/
+                </script>
+
+                <!-- ── SECTION 1: Sample Information ─────────────────────── -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-light fw-semibold">
+                        <i class="bi bi-droplet-half me-2 text-danger"></i>Sample Information
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Sample Type</label>
+                                <select class="form-select" id="sampleType">
+                                    <option value="">— Select —</option>
+                                    <option value="Whole Blood (EDTA)">Whole Blood (EDTA)</option>
+                                    <option value="Whole Blood (Citrate)">Whole Blood (Citrate)</option>
+                                    <option value="Serum">Serum</option>
+                                    <option value="Plasma">Plasma</option>
+                                    <option value="Urine (Midstream)">Urine (Midstream)</option>
+                                    <option value="Urine (24-hour)">Urine (24-hour)</option>
+                                    <option value="Stool">Stool</option>
+                                    <option value="Sputum">Sputum</option>
+                                    <option value="Swab (Throat)">Swab (Throat)</option>
+                                    <option value="Swab (Wound)">Swab (Wound)</option>
+                                    <option value="Swab (Cervical)">Swab (Cervical)</option>
+                                    <option value="CSF">CSF</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Date &amp; Time Collected</label>
+                                <input type="datetime-local" class="form-control" id="sampleCollectedAt"/>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Sample Quality</label>
+                                <select class="form-select" id="sampleQuality">
+                                    <option value="">— Select —</option>
+                                    <option value="ADEQUATE">Adequate</option>
+                                    <option value="HAEMOLYSED">Haemolysed</option>
+                                    <option value="LIPAEMIC">Lipaemic</option>
+                                    <option value="ICTERIC">Icteric</option>
+                                    <option value="CLOTTED">Clotted</option>
+                                    <option value="INSUFFICIENT">Insufficient</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Sample Quality Note</label>
+                                <input type="text" class="form-control" id="sampleQualityNote"
+                                       placeholder="e.g. Slightly haemolysed — results may be affected"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── SECTION 2: Method & Reagents ──────────────────────── -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-light fw-semibold">
+                        <i class="bi bi-flask me-2 text-primary"></i>Method &amp; Reagents
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Methodology / Technique</label>
+                                <input type="text" class="form-control" id="methodology"
+                                       placeholder="e.g. Flow cytometry, Colorimetric, PCR"/>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Reagents Used</label>
+                                <input type="text" class="form-control" id="reagentsUsed"
+                                       placeholder="e.g. HemoCue Hb 801 reagent, BD FACS reagents"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── SECTION 3: Parameters Table ───────────────────────── -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-light fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <span><i class="bi bi-table me-2 text-success"></i>Test Parameters</span>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <!-- Machine PDF badge + view link if already uploaded -->
+                            <span th:if="${visitRequest.machinePdfData != null}" class="badge bg-success">
+                                <i class="bi bi-file-earmark-check-fill me-1"></i>Machine PDF attached
+                            </span>
+                            <a th:if="${visitRequest.machinePdfData != null}"
+                               th:href="@{/labtech/visit-request/{id}/result/machine-pdf(id=${visitRequest.id})}"
+                               target="_blank" class="btn btn-sm btn-outline-danger py-0">
+                                <i class="bi bi-eye me-1"></i>View PDF
+                            </a>
+                            <!-- Upload / replace button -->
+                            <label class="btn btn-sm btn-outline-secondary py-0 mb-0" style="cursor:pointer;">
+                                <i class="bi bi-cpu me-1"></i>
+                                <span th:text="${visitRequest.machinePdfData != null} ? 'Replace Machine PDF' : 'Upload Machine Output PDF'"></span>
+                                <input type="file" id="machinePdfFile" accept="application/pdf,.pdf"
+                                       style="display:none" onchange="uploadMachinePdf(this)"/>
+                            </label>
+                            <!-- BC-10 CSV import from USB -->
+                            <label class="btn btn-sm btn-outline-primary py-0 mb-0" style="cursor:pointer;"
+                                   title="Import CBC parameters from BC-10 USB export (CSV)">
+                                <i class="bi bi-filetype-csv me-1"></i>Import BC-10 CSV
+                                <input type="file" id="bc10CsvFile" accept=".csv,text/csv"
+                                       style="display:none" onchange="importBc10Csv(this)"/>
+                            </label>
+                            <button type="button" class="btn btn-sm btn-outline-success" onclick="addParamRow()">
+                                <i class="bi bi-plus-circle me-1"></i>Add Parameter
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Split view: PDF iframe left | table right -->
+                    <div id="splitView"
+                         th:style="${visitRequest.machinePdfData != null} ? 'display:flex' : 'display:none'"
+                         style="gap:0;">
+                        <!-- PDF pane -->
+                        <div style="width:50%;min-width:300px;border-right:1px solid #dee2e6;">
+                            <div class="p-2 bg-white border-bottom d-flex align-items-center gap-2">
+                                <i class="bi bi-file-earmark-pdf-fill text-danger"></i>
+                                <span class="small fw-semibold">Machine Output — read values from here</span>
+                                <a th:if="${visitRequest.machinePdfData != null}"
+                                   th:href="@{/labtech/visit-request/{id}/result/machine-pdf(id=${visitRequest.id})}"
+                                   target="_blank" class="btn btn-outline-danger ms-auto py-0 px-2 small">Open in new tab</a>
+                            </div>
+                            <iframe th:if="${visitRequest.machinePdfData != null}"
+                                    id="machinePdfFrame"
+                                    th:src="@{/labtech/visit-request/{id}/result/machine-pdf(id=${visitRequest.id})}"
+                                    width="100%" height="520" style="border:none;display:block;"></iframe>
+                            <div id="machinePdfPlaceholder"
+                                 th:style="${visitRequest.machinePdfData != null} ? 'display:none' : 'display:flex'"
+                                 style="height:520px;align-items:center;justify-content:center;flex-direction:column;color:#aaa;">
+                                <i class="bi bi-file-earmark-pdf" style="font-size:3rem;"></i>
+                                <p class="mt-2 small">Uploading… please wait.</p>
+                            </div>
+                        </div>
+                        <!-- Table pane -->
+                        <div style="flex:1;overflow-x:auto;">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover align-middle mb-0">
+                                    <thead class="table-light small">
+                                        <tr>
+                                            <th style="width:22%">Parameter Name</th>
+                                            <th style="width:12%">Value</th>
+                                            <th style="width:10%">Unit</th>
+                                            <th style="width:18%">Reference Range</th>
+                                            <th style="width:10%">Flag</th>
+                                            <th style="width:20%">Method (optional)</th>
+                                            <th style="width:5%"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="paramsBodySplit"></tbody>
+                                </table>
+                            </div>
+                            <div id="noParamsMsgSplit" class="text-center text-muted py-3 small"
+                                 th:style="${visitRequest.machinePdfData != null} ? '' : 'display:none'">
+                                No parameters yet. Click <strong>Add Parameter</strong>.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Normal (full-width) table — shown when no machine PDF -->
+                    <div id="normalTableView"
+                         th:style="${visitRequest.machinePdfData != null} ? 'display:none' : ''">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover align-middle mb-0">
+                                    <thead class="table-light small">
+                                        <tr>
+                                            <th style="width:22%">Parameter Name</th>
+                                            <th style="width:12%">Value</th>
+                                            <th style="width:10%">Unit</th>
+                                            <th style="width:18%">Reference Range</th>
+                                            <th style="width:10%">Flag</th>
+                                            <th style="width:20%">Method (optional)</th>
+                                            <th style="width:5%"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="paramsBody"></tbody>
+                                </table>
+                            </div>
+                            <div id="noParamsMsg" class="text-center text-muted py-3 small">
+                                No parameters yet. Click <strong>Add Parameter</strong>.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── SECTION 4: Findings & Interpretation ──────────────── -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-light fw-semibold">
+                        <i class="bi bi-journal-text me-2 text-warning"></i>Findings &amp; Interpretation
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Findings / Observations <span class="text-danger">*</span></label>
+                                <textarea class="form-control" id="findings" rows="4"
+                                          placeholder="Describe key findings observed during testing..."></textarea>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Interpretation</label>
+                                <textarea class="form-control" id="interpretationText" rows="3"
+                                          placeholder="Clinical interpretation of these results..."></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Overall Reference Range Note</label>
+                                <input type="text" class="form-control" id="referenceRangeNote"
+                                       placeholder="e.g. Values based on adult male, age 18–65"/>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Conclusion / Diagnosis Suggestion</label>
+                                <input type="text" class="form-control" id="conclusion"
+                                       placeholder="e.g. Consistent with iron deficiency anaemia"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Action buttons ─────────────────────────────────────── -->
+                <div class="d-flex gap-2 mb-5">
+                    <button type="button" class="btn btn-primary px-4" onclick="saveDraft()">
+                        <i class="bi bi-save me-1"></i>Save Draft
+                    </button>
+                    <button type="button" class="btn btn-success px-4" id="submitBtn"
+                            th:disabled="${visitRequest.findings == null or #strings.isEmpty(visitRequest.findings)
+                                          and (visitRequest.resultSummary == null or #strings.isEmpty(visitRequest.resultSummary))}"
+                            onclick="submitResult()">
+                        <i class="bi bi-check-circle-fill me-1"></i>Submit &amp; Lock Result
+                    </button>
+                    <a th:href="@{/labtech/dashboard}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Cancel
+                    </a>
+                </div>
+
+            </div><!-- /entry form -->
+
+            <!-- Toast -->
+            <div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999">
+                <div id="liveToast" class="toast align-items-center text-white border-0 bg-success" role="alert">
+                    <div class="d-flex">
+                        <div class="toast-body fw-semibold" id="toastMsg">Done.</div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{labtech/fragments :: scripts}"></th:block>
+
+<script th:if="${visitRequest.status.name() != 'COMPLETED'}">
+// ── Split-view state ────────────────────────────────────────────────────────
+let _splitActive = /*[[${visitRequest.machinePdfData != null}]]*/ false;
+
+function activeBody() {
+    return _splitActive
+        ? document.getElementById('paramsBodySplit')
+        : document.getElementById('paramsBody');
+}
+function activeNoMsg() {
+    return _splitActive
+        ? document.getElementById('noParamsMsgSplit')
+        : document.getElementById('noParamsMsg');
+}
+
+// ── Upload machine PDF via XHR then show split view ─────────────────────────
+function uploadMachinePdf(input) {
+    if (!input.files || !input.files.length) return;
+    const id   = document.getElementById('requestId').value;
+    const file = input.files[0];
+    const form = new FormData();
+    form.append('machinePdf', file);
+
+    showToast('info', 'Uploading machine PDF…');
+
+    fetch(`/labtech/visit-request/${id}/result/machine-pdf`, { method: 'POST', body: form })
+        .then(r => r.json())
+        .then(d => {
+            if (d.path !== undefined) {
+                showToast('success', 'Machine PDF uploaded. Split view is active.');
+                activateSplitView(URL.createObjectURL(file));
+            } else {
+                showToast('danger', d.message || 'Upload failed.');
+            }
+        })
+        .catch(() => showToast('danger', 'Network error during upload.'));
+}
+
+function activateSplitView(iframeSrc) {
+    _splitActive = true;
+    document.getElementById('splitView').style.display    = 'flex';
+    document.getElementById('normalTableView').style.display = 'none';
+
+    // Move any already-added rows from the normal table to the split table
+    const normalBody = document.getElementById('paramsBody');
+    const splitBody  = document.getElementById('paramsBodySplit');
+    while (normalBody.firstChild) splitBody.appendChild(normalBody.firstChild);
+
+    // Update no-params message visibility
+    document.getElementById('noParamsMsgSplit').style.display =
+        splitBody.children.length === 0 ? '' : 'none';
+    document.getElementById('noParamsMsg').style.display = 'none';
+
+    // Show PDF in iframe (local object URL or server URL)
+    const frame = document.getElementById('machinePdfFrame');
+    const placeholder = document.getElementById('machinePdfPlaceholder');
+    if (frame) {
+        frame.src = iframeSrc;
+        if (placeholder) placeholder.style.display = 'none';
+    }
+}
+
+// ── Param row counter ────────────────────────────────────────────────────────
+let _rowCount = 0;
+
+function addParamRow(data) {
+    _rowCount++;
+    const tbody = activeBody();
+    activeNoMsg().style.display = 'none';
+
+    const d = data || {};
+    const flagOptions = ['N','H','L','C'].map(f =>
+        `<option value="${f}" ${d.flag===f?'selected':''}>${f} \u2013 ${f==='N'?'Normal':f==='H'?'High':f==='L'?'Low':'Critical'}</option>`
+    ).join('');
+
+    const tr = document.createElement('tr');
+    tr.id = 'pr_' + _rowCount;
+    tr.innerHTML = `
+        <td><input type="text" class="form-control form-control-sm" placeholder="e.g. Haemoglobin"
+                   value="${d.parameterName||''}" data-field="parameterName"/></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="e.g. 13.5"
+                   value="${d.resultValue||''}" data-field="resultValue"/></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="g/dL"
+                   value="${d.unit||''}" data-field="unit"/></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="13.0\u201317.0"
+                   value="${d.referenceRange||''}" data-field="referenceRange"/></td>
+        <td><select class="form-select form-select-sm" data-field="flag">${flagOptions}</select></td>
+        <td><input type="text" class="form-control form-control-sm" placeholder="optional"
+                   value="${d.method||''}" data-field="method"/></td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger"
+                    onclick="removeParamRow('pr_${_rowCount}')">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>`;
+    tbody.appendChild(tr);
+}
+
+function removeParamRow(id) {
+    document.getElementById(id)?.remove();
+    const tbody = activeBody();
+    if (!tbody.hasChildNodes()) activeNoMsg().style.display = '';
+}
+
+function collectPayload() {
+    // Collect from whichever table is active (or both if rows were moved)
+    const allRows = [
+        ...document.querySelectorAll('#paramsBody tr'),
+        ...document.querySelectorAll('#paramsBodySplit tr')
+    ];
+    const parameters = [];
+    allRows.forEach((row, idx) => {
+        const get = f => row.querySelector(`[data-field="${f}"]`).value.trim();
+        if (!get('parameterName')) return;
+        parameters.push({
+            parameterName:  get('parameterName'),
+            resultValue:    get('resultValue'),
+            unit:           get('unit'),
+            referenceRange: get('referenceRange'),
+            flag:           get('flag'),
+            method:         get('method'),
+            sortOrder:      idx
+        });
+    });
+    return {
+        sampleType:         document.getElementById('sampleType').value,
+        sampleCollectedAt:  document.getElementById('sampleCollectedAt').value,
+        sampleQuality:      document.getElementById('sampleQuality').value || null,
+        sampleQualityNote:  document.getElementById('sampleQualityNote').value,
+        methodology:        document.getElementById('methodology').value,
+        reagentsUsed:       document.getElementById('reagentsUsed').value,
+        findings:           document.getElementById('findings').value,
+        interpretationText: document.getElementById('interpretationText').value,
+        referenceRangeNote: document.getElementById('referenceRangeNote').value,
+        conclusion:         document.getElementById('conclusion').value,
+        parameters
+    };
+}
+
+async function saveDraft() {
+    const id = document.getElementById('requestId').value;
+    const payload = collectPayload();
+    try {
+        const r = await fetch(`/labtech/visit-request/${id}/result/save`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const d = await r.json();
+        if (r.ok) {
+            showToast('success', d.message || 'Result saved as draft.');
+            document.getElementById('submitBtn').disabled = false;
+        } else {
+            showToast('danger', d.message || 'Failed to save.');
+        }
+    } catch(e) { showToast('danger', 'Network error — please try again.'); }
+}
+
+async function submitResult() {
+    if (!confirm('Submit and lock this result? This cannot be undone.')) return;
+    const id = document.getElementById('requestId').value;
+    try {
+        const sr = await fetch(`/labtech/visit-request/${id}/result/save`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(collectPayload())
+        });
+        if (!sr.ok) { const sd = await sr.json(); showToast('danger', sd.message||'Save failed.'); return; }
+    } catch(e) { showToast('danger', 'Network error.'); return; }
+
+    try {
+        const r = await fetch(`/labtech/visit-request/${id}/result/submit`, {method:'POST'});
+        const d = await r.json();
+        if (r.ok) {
+            showToast('success', d.message || 'Result submitted and locked.');
+            setTimeout(() => window.location.href = '/labtech/dashboard', 1600);
+        } else {
+            showToast('danger', d.message || 'Submission failed.');
+        }
+    } catch(e) { showToast('danger', 'Network error — please try again.'); }
+}
+
+function showToast(type, msg) {
+    const el = document.getElementById('liveToast');
+    el.className = `toast align-items-center text-white border-0 bg-${type}`;
+    document.getElementById('toastMsg').textContent = msg;
+    new bootstrap.Toast(el, {delay: 3000}).show();
+}
+
+// ── Pre-fill saved values on page load ──────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    const s = _saved;
+    const set = (id, v) => { if (v && document.getElementById(id)) document.getElementById(id).value = v; };
+    set('sampleCollectedAt', s.sampleCollectedAt);
+    set('sampleQualityNote', s.sampleQualityNote);
+    set('methodology',       s.methodology);
+    set('reagentsUsed',      s.reagentsUsed);
+    set('findings',          s.findings);
+    set('interpretationText',s.interpretationText);
+    set('referenceRangeNote',s.referenceRangeNote);
+    set('conclusion',        s.conclusion);
+    if (s.sampleType)    document.getElementById('sampleType').value    = s.sampleType;
+    if (s.sampleQuality) document.getElementById('sampleQuality').value = s.sampleQuality;
+
+    if (Array.isArray(s.parameters)) {
+        s.parameters.forEach(p => addParamRow({
+            parameterName:  p.parameterName,
+            resultValue:    p.resultValue,
+            unit:           p.unit,
+            referenceRange: p.referenceRange,
+            flag:           p.flag || 'N',
+            method:         p.method
+        }));
+    }
+
+    // If machine PDF was already uploaded, ensure split view is active
+    if (_splitActive) {
+        document.getElementById('splitView').style.display      = 'flex';
+        document.getElementById('normalTableView').style.display = 'none';
+    }
+});
+
+// ── BC-10 CSV import from USB ────────────────────────────────────────────────
+function importBc10Csv(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const rows = parseCsvRows(e.target.result);
+            if (rows.length < 2) { showToast('danger', 'CSV has no data rows.'); return; }
+
+            const headers = rows[0];
+
+            // Find the first data row with a non-zero WBC or a non-empty Patient ID
+            let dataRow = null;
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                const patientId = getCsvVal(headers, row, 'Patient ID').trim();
+                const wbc = parseFloat(getCsvVal(headers, row, 'WBC (10^9/L)').trim());
+                if (patientId || (wbc && wbc !== 0)) { dataRow = row; break; }
+            }
+            if (!dataRow) { showToast('danger', 'No valid result row found in CSV.'); return; }
+
+            const paramMap = [
+                { col: 'WBC (10^9/L)',    name: 'WBC',    unit: '10\u2079/L'  },
+                { col: 'Lymph# (10^9/L)', name: 'Lymph#', unit: '10\u2079/L'  },
+                { col: 'Mid# (10^9/L)',   name: 'Mid#',   unit: '10\u2079/L'  },
+                { col: 'Gran# (10^9/L)',  name: 'Gran#',  unit: '10\u2079/L'  },
+                { col: 'Lymph% (%)',      name: 'Lymph%', unit: '%'            },
+                { col: 'Mid% (%)',        name: 'Mid%',   unit: '%'            },
+                { col: 'Gran% (%)',       name: 'Gran%',  unit: '%'            },
+                { col: 'RBC (10^12/L)',   name: 'RBC',    unit: '10\u00B9\u00B2/L' },
+                { col: 'HGB (g/dL)',      name: 'HGB',    unit: 'g/dL'         },
+                { col: 'HCT (%)',         name: 'HCT',    unit: '%'            },
+                { col: 'MCV (fL)',        name: 'MCV',    unit: 'fL'           },
+                { col: 'MCH (pg)',        name: 'MCH',    unit: 'pg'           },
+                { col: 'MCHC (g/L)',      name: 'MCHC',   unit: 'g/L'          },
+                { col: 'RDW-CV (%)',      name: 'RDW-CV', unit: '%'            },
+                { col: 'RDW-SD (fL)',     name: 'RDW-SD', unit: 'fL'           },
+                { col: 'PLT (10^9/L)',    name: 'PLT',    unit: '10\u2079/L'  },
+                { col: 'MPV (fL)',        name: 'MPV',    unit: 'fL'           },
+                { col: 'PDW ( )',         name: 'PDW',    unit: ''             },
+                { col: 'PCT (mL/L)',      name: 'PCT',    unit: 'mL/L'         },
+                { col: 'P-LCR (%)',       name: 'P-LCR',  unit: '%'            }
+            ];
+
+            // Clear existing parameter rows
+            ['paramsBody', 'paramsBodySplit'].forEach(function(id) {
+                const tb = document.getElementById(id);
+                if (tb) tb.innerHTML = '';
+            });
+            _rowCount = 0;
+
+            let loaded = 0;
+            paramMap.forEach(function(p) {
+                const val = getCsvVal(headers, dataRow, p.col).trim();
+                if (val && val !== '0.0' && val !== '0.00' && val !== '0') {
+                    addParamRow({ parameterName: p.name, resultValue: val, unit: p.unit, flag: 'N' });
+                    loaded++;
+                }
+            });
+
+            // Auto-fill sample collection date/time from Draw Date + Draw Time (DD/MM/YYYY)
+            const drawDate = getCsvVal(headers, dataRow, 'Draw Date').trim();
+            const drawTime = getCsvVal(headers, dataRow, 'Draw Time').trim();
+            if (drawDate) {
+                const parts = drawDate.split('/');
+                if (parts.length === 3) {
+                    const iso = parts[2] + '-' + parts[1].padStart(2, '0') + '-' + parts[0].padStart(2, '0');
+                    const timeStr = drawTime ? drawTime.padStart(5, '0') : '00:00';
+                    const el = document.getElementById('sampleCollectedAt');
+                    if (el) el.value = iso + 'T' + timeStr;
+                }
+            }
+
+            // Auto-fill sample type from Background field
+            const bg = getCsvVal(headers, dataRow, 'Background').trim();
+            if (bg === 'WB') {
+                const st = document.getElementById('sampleType');
+                if (st) st.value = 'Whole Blood (EDTA)';
+            }
+
+            activeNoMsg().style.display = loaded === 0 ? '' : 'none';
+            showToast('success', loaded + ' parameters imported from BC-10 CSV.');
+        } catch(err) {
+            showToast('danger', 'Failed to parse CSV: ' + err.message);
+        }
+        input.value = '';
+    };
+    reader.readAsText(file);
+}
+
+// RFC-4180 quoted CSV parser → array of string arrays
+function parseCsvRows(text) {
+    const rows = [];
+    let row = [], field = '', inQuote = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inQuote) {
+            if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+            else if (ch === '"') { inQuote = false; }
+            else { field += ch; }
+        } else {
+            if (ch === '"') { inQuote = true; }
+            else if (ch === ',') { row.push(field); field = ''; }
+            else if (ch === '\n' || ch === '\r') {
+                if (ch === '\r' && text[i + 1] === '\n') i++;
+                row.push(field); field = '';
+                if (row.some(function(c) { return c.trim(); })) rows.push(row);
+                row = [];
+            } else { field += ch; }
+        }
+    }
+    if (field || row.length) {
+        row.push(field);
+        if (row.some(function(c) { return c.trim(); })) rows.push(row);
+    }
+    return rows;
+}
+
+// Look up a CSV column value by header name
+function getCsvVal(headers, row, colName) {
+    const idx = headers.findIndex(function(h) { return h.trim() === colName; });
+    return (idx >= 0 && idx < row.length) ? row[idx] : '';
+}
+</script>
+
+</body>
+</html>

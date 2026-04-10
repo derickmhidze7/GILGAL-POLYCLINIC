@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{pharmacist/fragments :: head('Dashboard')}"></th:block>
+</head>
+<body>
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{pharmacist/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{pharmacist/fragments :: topbar('Pharmacist Dashboard')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{pharmacist/fragments :: alerts}"></th:block>
+
+            <!-- Stat Card -->
+            <div class="row g-4 mb-4">
+                <div class="col-12 col-sm-6 col-xl-4">
+                    <div class="stat-card stat-card--green">
+                        <div class="stat-card__icon"><i class="bi bi-capsule-pill"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value" th:text="${#lists.size(queue)}">0</div>
+                            <div class="stat-card__label">Pending Prescriptions</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dispense Queue Table -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-capsule-pill me-2 text-success"></i>Dispense Queue (Legacy)
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient</th>
+                                <th>Medication</th>
+                                <th>Dosage</th>
+                                <th>Frequency</th>
+                                <th>Route</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(queue)}">
+                                <td colspan="9" class="text-center text-muted py-4">
+                                    <i class="bi bi-check-circle-fill me-2 text-success"></i>No pending prescriptions.
+                                </td>
+                            </tr>
+                            <tr th:each="rx, i : ${queue}">
+                                <td th:text="${i.count}">1</td>
+                                <td>
+                                    <span th:text="${rx.medicalRecord.patient.firstName + ' ' + rx.medicalRecord.patient.lastName}"></span>
+                                    <br/>
+                                    <small class="text-muted" th:text="${rx.medicalRecord.patient.nationalId}"></small>
+                                </td>
+                                <td>
+                                    <!-- New price-item prescription -->
+                                    <th:block th:if="${rx.priceItem != null}">
+                                        <strong th:text="${rx.priceItem.productName}"></strong>
+                                        <br/>
+                                        <small class="text-muted" th:text="${rx.priceItem.classification != null ? rx.priceItem.classification : ''}"></small>
+                                    </th:block>
+                                    <!-- Legacy medication prescription -->
+                                    <th:block th:if="${rx.medication != null}">
+                                        <strong th:text="${rx.medication.genericName}"></strong>
+                                        <span th:if="${rx.medication.brandName != null}"
+                                              class="text-muted small ms-1"
+                                              th:text="'(' + ${rx.medication.brandName} + ')'"></span>
+                                        <br/>
+                                        <small class="text-muted"
+                                               th:text="${rx.medication.form} + ' — ' + ${rx.medication.strength}"></small>
+                                    </th:block>
+                                    <th:block th:if="${rx.medication == null && rx.priceItem == null}">
+                                        <span class="text-muted">—</span>
+                                    </th:block>
+                                </td>
+                                <td th:text="${rx.dosage}"></td>
+                                <td th:text="${rx.frequency}"></td>
+                                <td th:text="${rx.route != null ? rx.route : '—'}"></td>
+                                <td th:text="${rx.duration}"></td>
+                                <td>
+                                    <span class="badge"
+                                          th:classappend="${rx.pharmacyStatus.name() == 'READY_TO_DISPENSE'} ? 'bg-success'
+                                                        : (${rx.pharmacyStatus.name() == 'IN_PROGRESS'} ? 'bg-info text-dark'
+                                                        : (${rx.pharmacyStatus.name() == 'PARTIALLY_DISPENSED'} ? 'bg-primary'
+                                                        : (${rx.pharmacyStatus.name() == 'ON_HOLD'} ? 'bg-danger'
+                                                        : (${rx.pharmacyStatus.name() == 'OUT_OF_STOCK'} ? 'bg-dark'
+                                                        : 'bg-warning text-dark'))))"
+                                          th:text="${rx.pharmacyStatus.name() == 'READY_TO_DISPENSE' ? 'Ready' : rx.pharmacyStatus}">Ready</span>
+                                </td>
+                                <td class="text-end">
+                                    <a th:href="@{/pharmacist/prescription/{id}/dispense(id=${rx.id})}"
+                                       class="btn btn-sm btn-success">
+                                        <i class="bi bi-capsule-pill me-1"></i>Dispense
+                                    </a>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div><!-- /legacy card -->
+
+            <!-- ================================================================
+                 V26 Visit Prescriptions — Ready to Dispense (PAID)
+                 ================================================================ -->
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-check2-circle me-2 text-success"></i>Visit Prescriptions — Ready to Dispense
+                    <span class="badge bg-success ms-2" th:text="${#lists.size(visitQueue)}">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient</th>
+                                <th>Medication</th>
+                                <th>Dosage / Frequency</th>
+                                <th>Route</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(visitQueue)}">
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-check-circle-fill me-2 text-success"></i>No paid visit prescriptions awaiting dispense.
+                                </td>
+                            </tr>
+                            <tr th:each="vp, i : ${visitQueue}">
+                                <td th:text="${i.count}">1</td>
+                                <td>
+                                    <span th:text="${vp.medicalRecord.patient.firstName + ' ' + vp.medicalRecord.patient.lastName}"></span>
+                                    <br/>
+                                    <small class="text-muted" th:text="${vp.medicalRecord.patient.nationalId}"></small>
+                                </td>
+                                <td>
+                                    <strong th:text="${vp.priceItem != null ? vp.priceItem.productName : vp.medicationName}"></strong>
+                                    <br/>
+                                    <small class="text-muted" th:text="${vp.priceItem != null && vp.priceItem.classification != null ? vp.priceItem.classification : ''}"></small>
+                                </td>
+                                <td>
+                                    <span th:text="${vp.dosage}"></span>
+                                    <span class="text-muted small ms-1" th:text="${vp.frequency != null ? '/ ' + vp.frequency : ''}"></span>
+                                </td>
+                                <td th:text="${vp.route != null ? vp.route : '—'}"></td>
+                                <td th:text="${vp.duration != null ? vp.duration : '—'}"></td>
+                                <td>
+                                    <span class="badge bg-primary" th:text="${vp.status}">PENDING_DISPENSING</span>
+                                </td>
+                                <td class="text-end">
+                                    <a th:href="@{/pharmacist/visit-prescription/{id}/dispense(id=${vp.id})}"
+                                       class="btn btn-sm btn-success">
+                                        <i class="bi bi-capsule-pill me-1"></i>Dispense
+                                    </a>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div><!-- /visit queue card -->
+
+            <!-- ================================================================
+                 V26 Visit Prescriptions — Awaiting Payment at Reception
+                 ================================================================ -->
+            <div class="card border-0 shadow-sm mt-4 mb-4 opacity-75">
+                <div class="card-header bg-light fw-semibold text-muted">
+                    <i class="bi bi-clock-history me-2 text-warning"></i>Awaiting Payment at Reception
+                    <span class="badge bg-warning text-dark ms-2" th:text="${#lists.size(visitAwaitingPayment)}">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient</th>
+                                <th>Medication</th>
+                                <th>Dosage / Frequency</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(visitAwaitingPayment)}">
+                                <td colspan="6" class="text-center text-muted py-3">No prescriptions awaiting payment.</td>
+                            </tr>
+                            <tr th:each="vp, i : ${visitAwaitingPayment}" class="text-muted">
+                                <td th:text="${i.count}">1</td>
+                                <td>
+                                    <span th:text="${vp.medicalRecord.patient.firstName + ' ' + vp.medicalRecord.patient.lastName}"></span>
+                                    <br/>
+                                    <small th:text="${vp.medicalRecord.patient.nationalId}"></small>
+                                </td>
+                                <td th:text="${vp.priceItem != null ? vp.priceItem.productName : vp.medicationName}"></td>
+                                <td>
+                                    <span th:text="${vp.dosage}"></span>
+                                    <span class="ms-1 small" th:text="${vp.frequency != null ? '/ ' + vp.frequency : ''}"></span>
+                                </td>
+                                <td th:text="${vp.duration != null ? vp.duration : '—'}"></td>
+                                <td><span class="badge bg-secondary" th:text="${vp.status}">PENDING</span></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div><!-- /awaiting payment card -->
+
+            <!-- ================================================================
+                 Surgery Items — Ready to Dispense (invoice PAID)
+                 ================================================================ -->
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-scissors me-2 text-primary"></i>Surgery Items — Ready to Dispense
+                    <span class="badge bg-success ms-2" th:text="${#lists.size(surgeryQueue)}">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient</th>
+                                <th>Procedure</th>
+                                <th>Item</th>
+                                <th>Dosage</th>
+                                <th>Route</th>
+                                <th class="text-end">Price (TZS)</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(surgeryQueue)}">
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-check-circle-fill me-2 text-success"></i>No surgery items pending dispense.
+                                </td>
+                            </tr>
+                            <tr th:each="s, i : ${surgeryQueue}">
+                                <td th:text="${i.count}">1</td>
+                                <td>
+                                    <span th:text="${s.surgeryOrder.patient.firstName + ' ' + s.surgeryOrder.patient.lastName}"></span><br/>
+                                    <small class="text-muted" th:text="${s.surgeryOrder.patient.nationalId ?: '—'}"></small>
+                                </td>
+                                <td th:text="${s.surgeryOrder.procedureName}">—</td>
+                                <td>
+                                    <strong th:text="${s.itemName}">—</strong>
+                                    <span class="badge bg-secondary ms-1" th:text="${s.itemType.name() == 'PRE_OP' ? 'Pre-op' : 'Post-op'}"></span>
+                                </td>
+                                <td>
+                                    <span th:if="${s.dosesPerDay != null}"
+                                          th:text="${s.dosesPerDay + '×' + s.quantityPerDose + ' for ' + s.numberOfDays + 'd'}">—</span>
+                                    <span th:if="${s.dosesPerDay == null and s.dispenseAsWhole}"
+                                          th:text="'Whole ×' + ${s.quantity}">—</span>
+                                    <span th:if="${s.dosesPerDay == null and !s.dispenseAsWhole}"
+                                          th:text="${s.quantity + ' unit(s)'}">—</span>
+                                </td>
+                                <td th:text="${s.route ?: '—'}">—</td>
+                                <td class="text-end fw-semibold"
+                                    th:text="${'TZSh ' + #numbers.formatDecimal(s.price * s.quantity, 1, 'COMMA', 0, 'POINT')}">—</td>
+                                <td class="text-end">
+                                    <form th:action="@{/pharmacist/surgery-items/{id}/mark-dispensed(id=${s.id})}"
+                                          method="post" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-success"
+                                                onclick="return confirm('Mark this item as dispensed?')">
+                                            <i class="bi bi-check2 me-1"></i>Mark Dispensed
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div><!-- /surgery ready card -->
+
+            <!-- ================================================================
+                 Surgery Items — Awaiting Payment at Reception
+                 ================================================================ -->
+            <div class="card border-0 shadow-sm mt-4 mb-4 opacity-75">
+                <div class="card-header bg-light fw-semibold text-muted">
+                    <i class="bi bi-clock-history me-2 text-warning"></i>Surgery Items — Awaiting Payment
+                    <span class="badge bg-warning text-dark ms-2" th:text="${#lists.size(surgeryAwaitingPayment)}">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient</th>
+                                <th>Procedure</th>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th class="text-end">Price (TZS)</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(surgeryAwaitingPayment)}">
+                                <td colspan="6" class="text-center text-muted py-3">No surgery items awaiting payment.</td>
+                            </tr>
+                            <tr th:each="s, i : ${surgeryAwaitingPayment}" class="text-muted">
+                                <td th:text="${i.count}">1</td>
+                                <td th:text="${s.surgeryOrder.patient.firstName + ' ' + s.surgeryOrder.patient.lastName}">—</td>
+                                <td th:text="${s.surgeryOrder.procedureName}">—</td>
+                                <td>
+                                    <span th:text="${s.itemName}">—</span>
+                                    <span class="badge bg-secondary ms-1" th:text="${s.itemType.name() == 'PRE_OP' ? 'Pre-op' : 'Post-op'}"></span>
+                                </td>
+                                <td th:text="${s.quantity}">—</td>
+                                <td class="text-end"
+                                    th:text="${'TZSh ' + #numbers.formatDecimal(s.price * s.quantity, 1, 'COMMA', 0, 'POINT')}">—</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div><!-- /surgery awaiting payment card -->
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{pharmacist/fragments :: scripts}"></th:block>
+</body>
+</html>

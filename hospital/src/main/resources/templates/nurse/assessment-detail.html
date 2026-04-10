@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{nurse/fragments :: head('Assessment Detail')}"></th:block>
+    <style>
+        @media print {
+            #wrapper > div:first-child,   /* sidebar */
+            #page-content > div:first-child, /* topbar */
+            .no-print { display: none !important; }
+            #page-content { margin: 0 !important; padding: 0 !important; }
+            .main-content { padding: 0 !important; }
+            .card { box-shadow: none !important; border: 1px solid #dee2e6 !important; }
+            body { background: white !important; }
+        }
+        .section-title {
+            font-size: 0.72rem;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            font-weight: 600;
+            color: #6c757d;
+        }
+        .detail-label { font-size: 0.82rem; color: #6c757d; display: block; }
+        .detail-value { font-weight: 600; }
+    </style>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{nurse/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{nurse/fragments :: topbar('Assessment Detail')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{nurse/fragments :: alerts}"></th:block>
+
+            <!-- Toolbar -->
+            <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+                <a th:href="@{/nurse/completed-assessments}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Back to Completed Assessments
+                </a>
+                <button class="btn btn-sm btn-primary" onclick="window.print()">
+                    <i class="bi bi-printer me-1"></i>Print Assessment
+                </button>
+            </div>
+
+            <!-- ============================================================
+                 PRINTABLE AREA
+            ============================================================ -->
+            <div class="card border-0 shadow-sm mb-3">
+                <!-- Header: patient identity -->
+                <div class="card-header bg-white d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+                        <i class="bi bi-clipboard2-pulse-fill fs-4 text-primary"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0 fw-bold"
+                            th:text="${patient.firstName + ' ' + patient.lastName}">—</h5>
+                        <span class="text-muted small"
+                              th:text="${'ID: ' + (patient.nationalId != null ? patient.nationalId : 'N/A')}"></span>
+                        &nbsp;|&nbsp;
+                        <span class="text-muted small"
+                              th:text="${patient.dateOfBirth != null ? 'DOB: ' + #temporals.format(patient.dateOfBirth, 'dd MMM yyyy') : ''}"></span>
+                        &nbsp;|&nbsp;
+                        <span class="text-muted small"
+                              th:text="${patient.gender}"></span>
+                    </div>
+                    <div class="ms-auto text-end">
+                        <span class="text-muted small d-block">Assessment Date</span>
+                        <strong th:text="${triage.assessmentDateTime != null ? #temporals.format(triage.assessmentDateTime, 'dd MMM yyyy HH:mm') : '—'}">—</strong>
+                    </div>
+                </div>
+
+                <div class="card-body">
+
+                    <!-- Chief Complaint + Priority -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-7">
+                            <span class="section-title mb-1 d-block"><i class="bi bi-chat-text me-1"></i>Chief Complaint</span>
+                            <div class="p-2 bg-light rounded" th:text="${triage.chiefComplaint != null ? triage.chiefComplaint : '—'}">—</div>
+                        </div>
+                        <div class="col-md-3">
+                            <span class="section-title mb-1 d-block"><i class="bi bi-flag me-1"></i>Triage Priority</span>
+                            <span th:classappend="${triage.triagePriority.name() == 'IMMEDIATE'} ? 'badge bg-danger fs-6' :
+                                                  (${triage.triagePriority.name() == 'URGENT'} ? 'badge bg-warning text-dark fs-6' :
+                                                  (${triage.triagePriority.name() == 'LESS_URGENT'} ? 'badge bg-info text-dark fs-6' : 'badge bg-secondary fs-6'))"
+                                  th:text="${triage.triagePriority}">—</span>
+                        </div>
+                        <div class="col-md-2">
+                            <span class="section-title mb-1 d-block"><i class="bi bi-person-badge me-1"></i>Assessed By</span>
+                            <strong th:text="${triage.nurseFullName != null ? triage.nurseFullName : '—'}">—</strong>
+                        </div>
+                    </div>
+
+                    <hr class="my-2"/>
+
+                    <!-- Vital Signs -->
+                    <p class="section-title mb-2"><i class="bi bi-heart-pulse me-1"></i>Vital Signs</p>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6 col-md-2">
+                            <span class="detail-label">Temperature (°C)</span>
+                            <span class="detail-value" th:text="${triage.temperature != null ? triage.temperature : '—'}">—</span>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <span class="detail-label">Blood Pressure</span>
+                            <span class="detail-value"
+                                  th:text="${(triage.bloodPressureSystolic != null and triage.bloodPressureDiastolic != null) ? triage.bloodPressureSystolic + '/' + triage.bloodPressureDiastolic + ' mmHg' : '—'}">—</span>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <span class="detail-label">Pulse Rate (bpm)</span>
+                            <span class="detail-value" th:text="${triage.pulseRate != null ? triage.pulseRate : '—'}">—</span>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <span class="detail-label">Respiratory Rate</span>
+                            <span class="detail-value" th:text="${triage.respiratoryRate != null ? triage.respiratoryRate + ' /min' : '—'}">—</span>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <span class="detail-label">O₂ Saturation (%)</span>
+                            <span class="detail-value" th:text="${triage.oxygenSaturation != null ? triage.oxygenSaturation + '%' : '—'}">—</span>
+                        </div>
+                    </div>
+
+                    <hr class="my-2"/>
+
+                    <!-- Anthropometric -->
+                    <p class="section-title mb-2"><i class="bi bi-rulers me-1"></i>Anthropometric</p>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6 col-md-3">
+                            <span class="detail-label">Weight (kg)</span>
+                            <span class="detail-value" th:text="${triage.weight != null ? triage.weight : '—'}">—</span>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <span class="detail-label">Height (cm)</span>
+                            <span class="detail-value" th:text="${triage.height != null ? triage.height : '—'}">—</span>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <span class="detail-label">BMI</span>
+                            <span class="detail-value" th:text="${triage.bmi != null ? triage.bmi : '—'}">—</span>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <span class="detail-label">Mode of Ambulation</span>
+                            <span class="detail-value" th:text="${triage.modeOfAmbulation != null ? triage.modeOfAmbulation : '—'}">—</span>
+                        </div>
+                    </div>
+
+                    <hr class="my-2"/>
+
+                    <!-- Medical History -->
+                    <p class="section-title mb-2"><i class="bi bi-journal-medical me-1"></i>Medical History</p>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <span class="detail-label">Current Symptoms</span>
+                            <div class="p-2 bg-light rounded small" th:text="${triage.currentSymptoms != null ? triage.currentSymptoms : '—'}">—</div>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="detail-label">Known Allergies</span>
+                            <div class="p-2 bg-light rounded small" th:text="${triage.knownAllergies != null ? triage.knownAllergies : '—'}">—</div>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="detail-label">Comorbidities</span>
+                            <div class="p-2 bg-light rounded small" th:text="${triage.comorbidities != null ? triage.comorbidities : '—'}">—</div>
+                        </div>
+                    </div>
+
+                    <hr class="my-2"/>
+
+                    <!-- Pain & Risk -->
+                    <p class="section-title mb-2"><i class="bi bi-exclamation-triangle me-1"></i>Pain &amp; Risk Assessment</p>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6 col-md-2">
+                            <span class="detail-label">Pain Present?</span>
+                            <span class="detail-value" th:text="${triage.hasPain ? 'Yes' : 'No'}">—</span>
+                        </div>
+                        <div class="col-6 col-md-2" th:if="${triage.hasPain}">
+                            <span class="detail-label">Pain Score (0–10)</span>
+                            <span class="detail-value" th:text="${triage.painScore != null ? triage.painScore : '—'}">—</span>
+                        </div>
+                        <div class="col-md-4" th:if="${triage.hasPain}">
+                            <span class="detail-label">Pain Location</span>
+                            <span class="detail-value" th:text="${triage.painLocation != null ? triage.painLocation : '—'}">—</span>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <span class="detail-label">Fall Risk?</span>
+                            <span class="detail-value" th:text="${triage.fallRisk ? 'Yes' : 'No'}">—</span>
+                        </div>
+                        <div class="col-6 col-md-2" th:if="${triage.fallRisk}">
+                            <span class="detail-label">Fall Score</span>
+                            <span class="detail-value" th:text="${triage.fallScore != null ? triage.fallScore : '—'}">—</span>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <span class="detail-label">Infectious Disease Risk?</span>
+                            <span class="detail-value" th:text="${triage.infectiousDiseaseRisk ? 'Yes' : 'No'}">—</span>
+                        </div>
+                    </div>
+
+                    <!-- Referral -->
+                    <div th:if="${triage.referredDoctorName != null}">
+                        <hr class="my-2"/>
+                        <p class="section-title mb-2"><i class="bi bi-person-lines-fill me-1"></i>Referral</p>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <span class="detail-label">Referred Doctor</span>
+                                <span class="detail-value" th:text="${triage.referredDoctorName}">—</span>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="detail-label">Referral Type</span>
+                                <span class="detail-value" th:text="${triage.referralType != null ? triage.referralType : '—'}">—</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div th:if="${triage.notes != null and !#strings.isEmpty(triage.notes)}">
+                        <hr class="my-2"/>
+                        <p class="section-title mb-2"><i class="bi bi-sticky me-1"></i>Notes</p>
+                        <div class="p-2 bg-light rounded small" th:text="${triage.notes}">—</div>
+                    </div>
+
+                </div>
+
+                <!-- Footer signature block -->
+                <div class="card-footer bg-white text-end text-muted small">
+                    Assessed by <strong th:text="${triage.nurseFullName}">—</strong>
+                    &nbsp;|&nbsp;
+                    <span th:text="${triage.assessmentDateTime != null ? #temporals.format(triage.assessmentDateTime, 'dd MMM yyyy HH:mm') : '—'}"></span>
+                </div>
+            </div>
+
+            <!-- Print button (bottom) -->
+            <div class="text-end mb-4 no-print">
+                <button class="btn btn-primary" onclick="window.print()">
+                    <i class="bi bi-printer me-1"></i>Print Assessment
+                </button>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{nurse/fragments :: scripts}"></th:block>
+</body>
+</html>

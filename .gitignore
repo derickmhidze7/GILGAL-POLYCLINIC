@@ -1,0 +1,14 @@
+# Root-level gitignore for the ADAGS-HOSPITAL repository
+
+# App startup and debug log files (created during development)
+*.log
+app_startup*.log
+
+# Environment files with real credentials
+.env
+.env.local
+.env.*.local
+
+# OS metadata
+.DS_Store
+Thumbs.db

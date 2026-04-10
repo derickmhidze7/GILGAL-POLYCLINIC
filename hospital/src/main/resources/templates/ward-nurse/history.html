@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{ward-nurse/fragments :: head('My History')}"></th:block>
+    <style>
+        @media print {
+            #sidebar, .top-bar, .no-print { display: none !important; }
+            #page-content { margin: 0 !important; }
+            .main-content { padding: 0 !important; }
+        }
+        .section-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: #6c757d; font-weight: 600; }
+        .detail-label  { font-size: .80rem; color: #6c757d; display: block; }
+        .detail-value  { font-weight: 600; font-size: .93rem; }
+        .accordion-button:not(.collapsed) { background: #e8f0fe; color: #1a56db; }
+    </style>
+</head>
+<body>
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{ward-nurse/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{ward-nurse/fragments :: topbar('My Ward History')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{ward-nurse/fragments :: alerts}"></th:block>
+
+            <!-- Toolbar -->
+            <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+                <div>
+                    <h5 class="mb-0 fw-bold">
+                        <i class="bi bi-clock-history me-2 text-primary"></i>My Ward Patient History
+                    </h5>
+                    <small class="text-muted">All patients you have been assigned to nurse, newest first.</small>
+                </div>
+                <button onclick="window.print()" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-printer me-1"></i>Print
+                </button>
+            </div>
+
+            <!-- Summary strip -->
+            <div th:if="${!#lists.isEmpty(history)}" class="row g-3 mb-4 no-print">
+                <div class="col-auto">
+                    <div class="card border-0 shadow-sm px-4 py-2 text-center">
+                        <div class="fw-bold fs-5 text-primary" th:text="${#lists.size(history)}">0</div>
+                        <div class="text-muted small">Total Cases</div>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <div class="card border-0 shadow-sm px-4 py-2 text-center">
+                        <div class="fw-bold fs-5 text-success" th:text="${dischargedCount}">0</div>
+                        <div class="text-muted small">Discharged</div>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <div class="card border-0 shadow-sm px-4 py-2 text-center">
+                        <div class="fw-bold fs-5 text-danger" th:text="${criticalCount}">0</div>
+                        <div class="text-muted small">Critical</div>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <div class="card border-0 shadow-sm px-4 py-2 text-center">
+                        <div class="fw-bold fs-5 text-info" th:text="${activeCount}">0</div>
+                        <div class="text-muted small">Still Admitted</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty state -->
+            <div th:if="${#lists.isEmpty(history)}"
+                 class="card border-0 shadow-sm text-center py-5 text-muted">
+                <i class="bi bi-hospital fs-1 mb-2 d-block"></i>
+                <p class="mb-0">No ward assignments on record yet.</p>
+            </div>
+
+            <!-- Accordion -->
+            <div class="accordion" id="historyAccordion" th:if="${!#lists.isEmpty(history)}">
+                <div class="accordion-item border-0 shadow-sm mb-3 rounded"
+                     th:each="a, i : ${history}"
+                     th:id="'item-' + ${i.index}">
+
+                    <!-- Header -->
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed rounded"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                th:attr="data-bs-target='#collapse-' + ${i.index}, aria-controls='collapse-' + ${i.index}">
+                            <div class="d-flex align-items-center gap-3 w-100 flex-wrap">
+                                <!-- Status badge -->
+                                <span class="badge fs-6"
+                                      th:classappend="${a.status.name() == 'CRITICAL'} ? 'bg-danger' :
+                                                      (${a.status.name() == 'DISCHARGED'} ? 'bg-secondary' :
+                                                      (${a.status.name() == 'STABLE'} ? 'bg-success' :
+                                                      (${a.status.name() == 'TRANSFERRED'} ? 'bg-info text-dark' : 'bg-warning text-dark')))"
+                                      th:text="${a.status}">—</span>
+                                <!-- Patient name -->
+                                <strong class="me-auto"
+                                        th:text="${a.patient.firstName + ' ' + a.patient.lastName}">Patient</strong>
+                                <!-- Ward / Bed -->
+                                <small class="text-muted d-none d-md-inline">
+                                    <i class="bi bi-hospital me-1"></i>
+                                    <span th:text="${(a.ward ?: '—') + (a.bedNumber != null ? ' · Bed ' + a.bedNumber : '')}">—</span>
+                                </small>
+                                <!-- Admit date -->
+                                <small class="text-muted"
+                                       th:text="${a.admitDate != null ? #temporals.format(a.admitDate, 'dd MMM yyyy') : '—'}">—</small>
+                                <!-- View care button -->
+                                <a th:href="@{/ward-nurse/patients/{id}/care(id=${a.id})}"
+                                   class="btn btn-sm btn-outline-primary no-print ms-2"
+                                   onclick="event.stopPropagation()">
+                                    <i class="bi bi-clipboard2-pulse me-1"></i>View Care
+                                </a>
+                            </div>
+                        </button>
+                    </h2>
+
+                    <!-- Body -->
+                    <div th:id="'collapse-' + ${i.index}"
+                         class="accordion-collapse collapse"
+                         th:attr="data-bs-parent='#historyAccordion'">
+                        <div class="accordion-body pt-3">
+
+                            <!-- Patient & Ward info -->
+                            <span class="section-label"><i class="bi bi-person me-1"></i>Patient &amp; Admission</span>
+                            <div class="row g-3 mt-1 mb-3">
+                                <div class="col-6 col-md-3">
+                                    <span class="detail-label">Patient</span>
+                                    <span class="detail-value"
+                                          th:text="${a.patient.firstName + ' ' + a.patient.lastName}">—</span>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <span class="detail-label">File / National ID</span>
+                                    <span class="detail-value"
+                                          th:text="${a.patient.nationalId ?: '—'}">—</span>
+                                </div>
+                                <div class="col-6 col-md-2">
+                                    <span class="detail-label">Ward</span>
+                                    <span class="detail-value" th:text="${a.ward ?: '—'}">—</span>
+                                </div>
+                                <div class="col-6 col-md-2">
+                                    <span class="detail-label">Bed</span>
+                                    <span class="detail-value" th:text="${a.bedNumber ?: '—'}">—</span>
+                                </div>
+                                <div class="col-6 col-md-2">
+                                    <span class="detail-label">Status</span>
+                                    <span class="badge"
+                                          th:classappend="${a.status.name() == 'CRITICAL'} ? 'bg-danger' :
+                                                          (${a.status.name() == 'DISCHARGED'} ? 'bg-secondary' :
+                                                          (${a.status.name() == 'STABLE'} ? 'bg-success' :
+                                                          (${a.status.name() == 'TRANSFERRED'} ? 'bg-info text-dark' : 'bg-warning text-dark')))"
+                                          th:text="${a.status}">—</span>
+                                </div>
+                            </div>
+
+                            <!-- Dates -->
+                            <span class="section-label"><i class="bi bi-calendar2-range me-1"></i>Dates</span>
+                            <div class="row g-3 mt-1 mb-3">
+                                <div class="col-6 col-md-3">
+                                    <span class="detail-label">Admitted</span>
+                                    <span class="detail-value"
+                                          th:text="${a.admitDate != null ? #temporals.format(a.admitDate,'dd MMM yyyy HH:mm') : '—'}">—</span>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <span class="detail-label"
+                                          th:text="${(a.status.name() == 'DISCHARGED' or a.status.name() == 'TRANSFERRED') ? 'Discharged / Transferred' : 'Expected Discharge'}">Date</span>
+                                    <span class="detail-value"
+                                          th:text="${a.dischargeDate != null ? #temporals.format(a.dischargeDate,'dd MMM yyyy HH:mm') : '—'}">—</span>
+                                </div>
+                
+                            </div>
+
+                            <!-- Admitted By -->
+                            <span class="section-label"><i class="bi bi-person-badge me-1"></i>Care Team</span>
+                            <div class="row g-3 mt-1 mb-3">
+                                <div class="col-6 col-md-4">
+                                    <span class="detail-label">Admitting Doctor</span>
+                                    <span class="detail-value"
+                                          th:text="${a.assignedByDoctor != null
+                                              ? 'Dr. ' + a.assignedByDoctor.firstName + ' ' + a.assignedByDoctor.lastName
+                                              : '—'}">—</span>
+                                </div>
+                                <div class="col-6 col-md-4">
+                                    <span class="detail-label">Assigned Nurse</span>
+                                    <span class="detail-value"
+                                          th:text="${a.assignedNurse != null
+                                              ? a.assignedNurse.firstName + ' ' + a.assignedNurse.lastName
+                                              : '—'}">—</span>
+                                </div>
+                            </div>
+
+                            <!-- Admission Notes -->
+                            <div th:if="${a.admissionNotes != null and !#strings.isEmpty(a.admissionNotes)}"
+                                 class="mb-3">
+                                <span class="section-label"><i class="bi bi-sticky me-1"></i>Admission Notes</span>
+                                <div class="p-2 bg-light rounded small mt-1"
+                                     style="white-space: pre-wrap"
+                                     th:text="${a.admissionNotes}">—</div>
+                            </div>
+
+                            <!-- Footer -->
+                            <div class="d-flex justify-content-end pt-3 border-top no-print">
+                                <a th:href="@{/ward-nurse/patients/{id}/care(id=${a.id})}"
+                                   class="btn btn-sm btn-primary">
+                                    <i class="bi bi-clipboard2-pulse me-1"></i>Open Care Record
+                                </a>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{ward-nurse/fragments :: scripts}"></th:block>
+</body>
+</html>

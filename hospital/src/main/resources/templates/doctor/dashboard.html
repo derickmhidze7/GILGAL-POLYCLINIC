@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{doctor/fragments :: head('Dashboard')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{doctor/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{doctor/fragments :: topbar('Consultation Dashboard')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{doctor/fragments :: alerts}"></th:block>
+
+            <!-- Stat row -->
+            <div class="row g-4 mb-4">
+                <div class="col-12 col-sm-6 col-xl-4">
+                    <div class="stat-card stat-card--blue">
+                        <div class="stat-card__icon"><i class="bi bi-clipboard2-heart-fill"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value" th:text="${#lists.size(queue)}">0</div>
+                            <div class="stat-card__label">Patients Waiting</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-4">
+                    <div class="stat-card stat-card--blue" style="--card-color:#0d9488">
+                        <div class="stat-card__icon"><i class="bi bi-person-lines-fill"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value" th:text="${#lists.size(myPatients)}">0</div>
+                            <div class="stat-card__label">Patients Attended (last 50)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabbed card: My Queue | My Patients -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                    <ul class="nav nav-tabs card-header-tabs" id="dashTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="queue-tab"
+                                    data-bs-toggle="tab" data-bs-target="#queuePane"
+                                    type="button" role="tab">
+                                <i class="bi bi-people-fill me-1 text-primary"></i>
+                                My Queue
+                                <span class="badge bg-primary ms-1" th:text="${#lists.size(queue)}">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="patients-tab"
+                                    data-bs-toggle="tab" data-bs-target="#patientsPane"
+                                    type="button" role="tab">
+                                <i class="bi bi-clock-history me-1 text-success"></i>
+                                My Patients
+                                <span class="badge bg-success ms-1" th:text="${#lists.size(myPatients)}">0</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="tab-content">
+                    <!-- ── My Queue ────────────────────────────────────────── -->
+                    <div class="tab-pane fade show active p-0" id="queuePane" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Patient</th>
+                                    <th>DOB</th>
+                                    <th>Phone</th>
+                                    <th>Scheduled</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Fee</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr th:if="${#lists.isEmpty(queue)}">
+                                    <td colspan="9" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox fs-4 d-block mb-2"></i>
+                                        No patients in your consultation queue.
+                                    </td>
+                                </tr>
+                                <tr th:each="appt, iter : ${queue}">
+                                    <td th:text="${iter.count}">1</td>
+                                    <td>
+                                        <strong th:text="${appt.patient.firstName + ' ' + appt.patient.lastName}">—</strong>
+                                    </td>
+                                    <td th:text="${appt.patient.dateOfBirth != null ? #temporals.format(appt.patient.dateOfBirth, 'dd MMM yyyy') : '—'}">—</td>
+                                    <td th:text="${appt.patient.phone != null ? appt.patient.phone : '—'}">—</td>
+                                    <td th:text="${#temporals.format(appt.scheduledDateTime, 'dd MMM yyyy HH:mm')}">—</td>
+                                    <td>
+                                        <span class="badge bg-secondary"
+                                              th:text="${appt.appointmentType}">—</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge"
+                                              th:classappend="${appt.status.name() == 'IN_PROGRESS'} ? 'bg-warning text-dark' : 'bg-success'"
+                                              th:text="${appt.status}">—</span>
+                                    </td>
+                                    <td>
+                                        <span th:if="${paidIds.contains(appt.id)}" class="badge bg-success">
+                                            <i class="bi bi-check-circle me-1"></i>Paid
+                                        </span>
+                                        <span th:unless="${paidIds.contains(appt.id)}" class="badge bg-danger">
+                                            <i class="bi bi-x-circle me-1"></i>Unpaid
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        <a th:if="${paidIds.contains(appt.id)}"
+                                           th:href="@{/doctor/consultation/{id}(id=${appt.id})}"
+                                           class="btn btn-sm btn-primary">
+                                            <i class="bi bi-clipboard2-plus me-1"></i>Start Consultation
+                                        </a>
+                                        <span th:unless="${paidIds.contains(appt.id)}"
+                                              class="btn btn-sm btn-secondary disabled"
+                                              title="Patient has not paid the consultation fee">
+                                            <i class="bi bi-lock me-1"></i>Fee Unpaid
+                                        </span>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ── My Patients (history) ──────────────────────────── -->
+                    <div class="tab-pane fade p-0" id="patientsPane" role="tabpanel">
+                        <!-- Search box -->
+                        <div class="p-3 border-bottom">
+                            <input type="text" id="patientSearch" class="form-control form-control-sm"
+                                   placeholder="Search by patient name or diagnosis…"
+                                   oninput="filterPatients(this.value)"/>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0" id="patientsTable">
+                                <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Patient</th>
+                                    <th>DOB</th>
+                                    <th>Visit Date</th>
+                                    <th>Provisional Diagnosis</th>
+                                    <th>Disposition</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                                </thead>
+                                <tbody id="patientsBody">
+                                <tr th:if="${#lists.isEmpty(myPatients)}">
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        <i class="bi bi-person-x fs-4 d-block mb-2"></i>
+                                        No consultations recorded yet.
+                                    </td>
+                                </tr>
+                                <tr th:each="rec, iter : ${myPatients}">
+                                    <td th:text="${iter.count}">1</td>
+                                    <td>
+                                        <strong th:text="${rec.patient.firstName + ' ' + rec.patient.lastName}">—</strong><br/>
+                                        <small class="text-muted" th:text="${rec.patient.nationalId}">—</small>
+                                    </td>
+                                    <td th:text="${rec.patient.dateOfBirth != null ? #temporals.format(rec.patient.dateOfBirth, 'dd MMM yyyy') : '—'}">—</td>
+                                    <td th:text="${rec.visitDate != null ? #temporals.format(rec.visitDate, 'dd MMM yyyy HH:mm') : '—'}">—</td>
+                                    <td>
+                                        <span th:text="${rec.provisionalDiagnosis != null ? rec.provisionalDiagnosis : '—'}">—</span>
+                                    </td>
+                                    <td>
+                                        <span th:if="${rec.nextStep != null}" class="badge bg-info text-dark"
+                                              th:text="${rec.nextStep}">—</span>
+                                        <span th:if="${rec.nextStep == null}" class="text-muted">—</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge"
+                                              th:classappend="${rec.consultationStatus.name() == 'FINALIZED'} ? 'bg-success'
+                                                            : (${rec.consultationStatus.name() == 'LOCKED'} ? 'bg-secondary'
+                                                            : 'bg-warning text-dark')"
+                                              th:text="${rec.consultationStatus}">—</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <a th:if="${rec.appointment != null}"
+                                           th:href="@{/doctor/consultation/{id}(id=${rec.appointment.id})}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye me-1"></i>View
+                                        </a>
+                                        <span th:if="${rec.appointment == null}" class="text-muted small fst-italic">Walk-in visit</span>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div><!-- end tab-content -->
+            </div><!-- end card -->
+
+            <script>
+            function filterPatients(query) {
+                const q = query.toLowerCase();
+                document.querySelectorAll('#patientsBody tr[th\\:each]').forEach(r => r.style.display = '');
+                const rows = document.querySelectorAll('#patientsBody tr:not([colspan])');
+                rows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = (!q || text.includes(q)) ? '' : 'none';
+                });
+            }
+            </script>
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{doctor/fragments :: scripts}"></th:block>
+</body>
+</html>

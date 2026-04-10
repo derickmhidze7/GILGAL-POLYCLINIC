@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{doctor/fragments :: head('Prescriptions')}"></th:block>
+    <style>
+        .queue-row { transition: background .12s; }
+        .queue-row:hover { background: #f0fdf4; }
+        .autocomplete-drop {
+            position: absolute; z-index: 1055; left: 0; right: 0;
+            background: #fff; border: 1px solid #dee2e6; border-radius: .375rem;
+            box-shadow: 0 4px 14px rgba(0,0,0,.12); max-height: 240px; overflow-y: auto;
+        }
+        .autocomplete-drop .ac-item {
+            padding: .45rem .75rem; cursor: pointer; font-size: .82rem;
+            border-bottom: 1px solid #f4f4f4;
+        }
+        .autocomplete-drop .ac-item:hover { background: #f0fdf4; }
+        #rx-preview {
+            font-size: .9rem; font-weight: 600; color: #166534;
+            background: #f0fdf4; border: 1px solid #bbf7d0;
+            border-radius: .5rem; padding: .5rem .85rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{doctor/fragments :: sidebar}"></th:block>
+    <div id="page-content">
+        <th:block th:replace="~{doctor/fragments :: topbar('Prescriptions')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{doctor/fragments :: alerts}"></th:block>
+
+            <!-- Page header -->
+            <div class="mb-4">
+                <h5 class="fw-bold mb-0">
+                    <i class="bi bi-capsule text-success me-2"></i>Prescriptions
+                </h5>
+                <small class="text-muted">Patients currently in consultation — first come, first served.</small>
+            </div>
+
+            <!-- Patient queue -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 d-flex align-items-center justify-content-between">
+                    <span class="fw-semibold">Active Patients</span>
+                    <span class="badge bg-success-subtle text-success" id="queue-count" style="display:none"></span>
+                </div>
+                <div class="card-body p-0">
+
+                    <div id="queue-loading" class="text-center text-muted py-4">
+                        <span class="spinner-border spinner-border-sm me-2"></span>Loading patients...
+                    </div>
+
+                    <div id="queue-empty" class="text-center text-muted py-5 d-none">
+                        <i class="bi bi-person-slash fs-1 d-block mb-2 opacity-50"></i>
+                        <p class="mb-0">No patients in consultation right now.</p>
+                    </div>
+
+                    <div class="table-responsive d-none" id="queue-table-wrap">
+                        <table class="table table-sm mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:3rem">#</th>
+                                    <th>Patient</th>
+                                    <th>Phone</th>
+                                    <th>Visit Time</th>
+                                    <th style="width:7rem">Pending Rx</th>
+                                    <th style="width:22rem"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="queue-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PRESCRIBE MODAL
+═══════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="prescribeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom-0 pb-0">
+                <div>
+                    <h6 class="modal-title fw-bold mb-0">
+                        <i class="bi bi-capsule text-success me-2"></i>Prescribe Medication
+                    </h6>
+                    <small class="text-muted" id="modal-patient-name"></small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body pt-3">
+
+                <!-- Drug search -->
+                <div class="mb-3" style="position:relative">
+                    <label class="form-label fw-semibold small">
+                        Medication <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" id="drug-search" class="form-control"
+                           placeholder="Type 2+ characters to search pharmacy catalogue…"
+                           autocomplete="off" oninput="debounceDrug(this)"/>
+                    <input type="hidden" id="drug-id"/>
+                    <input type="hidden" id="drug-price" value="0"/>
+                    <div class="autocomplete-drop" id="drug-drop" style="display:none"></div>
+                    <div class="form-text" id="drug-price-hint"></div>
+                </div>
+
+                <hr class="my-3"/>
+
+                <!-- Dispense as whole checkbox -->
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="dispense-as-whole"
+                           onchange="toggleMode()"/>
+                    <label class="form-check-label fw-semibold" for="dispense-as-whole">
+                        Dispense medication as a whole unit
+                        <small class="text-muted fw-normal">
+                            (e.g. bottle, vial, pack — not measured per pill)
+                        </small>
+                    </label>
+                </div>
+
+                <!-- Mode A — Standard dosage schedule -->
+                <div id="mode-standard">
+                    <div class="row g-3 mb-3">
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold">
+                                Doses per day <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" id="doses-per-day" class="form-control" min="1"
+                                   placeholder="e.g. 2" oninput="updatePreview()"/>
+                            <div class="form-text">Times taken per day</div>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold">
+                                Quantity per dose <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" id="qty-per-dose" class="form-control" min="1"
+                                   placeholder="e.g. 3" oninput="updatePreview()"/>
+                            <div class="form-text">Pills taken each time</div>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold">
+                                Number of days <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" id="num-days" class="form-control" min="1"
+                                   placeholder="e.g. 3" oninput="updatePreview()"/>
+                            <div class="form-text">Duration of treatment</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mode B — Whole unit -->
+                <div id="mode-whole" class="d-none">
+                    <div class="row g-3 mb-3">
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold">
+                                Quantity <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" id="whole-qty" class="form-control" min="1"
+                                   placeholder="e.g. 2" oninput="updatePreview()"/>
+                            <div class="form-text">Units to dispense</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live preview -->
+                <div id="rx-preview" class="mb-3 d-none">
+                    <i class="bi bi-calculator me-2"></i><span id="rx-preview-text"></span>
+                </div>
+
+                <hr class="my-3"/>
+
+                <!-- Route + Instructions -->
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Route of Administration</label>
+                        <select id="rx-route" class="form-select">
+                            <option value="ORAL">Oral</option>
+                            <option value="IV">IV (Intravenous)</option>
+                            <option value="IM">IM (Intramuscular)</option>
+                            <option value="TOPICAL">Topical</option>
+                            <option value="INHALATION">Inhalation</option>
+                            <option value="SUBLINGUAL">Sublingual</option>
+                            <option value="RECTAL">Rectal</option>
+                            <option value="OTHER">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label small fw-semibold">Special Instructions</label>
+                        <input type="text" id="rx-instructions" class="form-control"
+                               placeholder="e.g. Take after meals, avoid dairy products…"/>
+                    </div>
+                </div>
+
+            </div><!-- end modal-body -->
+
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-success px-4" id="btn-prescribe-save"
+                        onclick="savePrescription()">
+                    <i class="bi bi-check2 me-1"></i>Save Prescription
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PRESCRIBE HISTORY MODAL
+═══════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom-0 pb-0">
+                <div>
+                    <h6 class="modal-title fw-bold mb-0">
+                        <i class="bi bi-clock-history text-secondary me-2"></i>Prescription History
+                    </h6>
+                    <small class="text-muted" id="history-patient-name"></small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div id="history-loading" class="text-center text-muted py-4">
+                    <span class="spinner-border spinner-border-sm me-2"></span>Loading history…
+                </div>
+                <div id="history-empty" class="text-center text-muted py-4 d-none">
+                    <i class="bi bi-capsule fs-2 opacity-50 d-block mb-2"></i>
+                    No prescriptions recorded for this patient yet.
+                </div>
+                <div id="history-content" class="d-none">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Medication</th>
+                                <th>Dosage / Schedule</th>
+                                <th>Route</th>
+                                <th>Instructions</th>
+                                <th>Qty</th>
+                                <th>Status</th>
+                                <th>Dispensed By</th>
+                                <th>Dispensed At</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="mainToast" class="toast align-items-center border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body fw-semibold" id="toastBody"></div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+let _selected = null; // { recordId, appointmentId, patientName }
+let _drugPrice = 0;
+
+function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function fmtTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+function fmtTZS(n) {
+    return 'TZS ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+function showToast(type, msg) {
+    const t = document.getElementById('mainToast'), b = document.getElementById('toastBody');
+    t.className = `toast align-items-center text-bg-${type} border-0`;
+    b.textContent = msg;
+    bootstrap.Toast.getOrCreateInstance(t, { delay: 5000 }).show();
+}
+
+// ─── Send unsent prescriptions to billing ────────────────────────────────────
+async function sendToBilling(recordId, patientName, count) {
+    if (!recordId || recordId === 'null') return;
+    if (!confirm(`Send ${count} prescription(s) for ${patientName} to the receptionist for payment?`)) return;
+
+    try {
+        const r = await fetch('/doctor/api/prescriptions/' + recordId + '/send-to-payment', {
+            method: 'POST'
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.message || 'Failed');
+        showToast('success', data.message || 'Prescriptions sent to billing.');
+        loadQueue(); // refresh pending count
+    } catch (e) {
+        showToast('danger', 'Error: ' + e.message);
+    }
+}
+
+// ─── Load patient queue ───────────────────────────────────────────────────────
+async function loadQueue() {
+    try {
+        const r = await fetch('/doctor/api/queue');
+        if (!r.ok) {
+            throw new Error('Server returned ' + r.status + ' — check that you are logged in as a doctor.');
+        }
+        const queue = await r.json();
+        document.getElementById('queue-loading').classList.add('d-none');
+
+        if (!queue.length) {
+            document.getElementById('queue-empty').classList.remove('d-none');
+            return;
+        }
+
+        const count = document.getElementById('queue-count');
+        count.textContent = queue.length + ' patient' + (queue.length !== 1 ? 's' : '');
+        count.style.display = '';
+
+        document.getElementById('queue-tbody').innerHTML = queue.map(p => {
+            const hasRecord = p.recordId && p.recordId !== 'null';
+            const pending   = p.pendingRxCount || 0;
+            return `
+            <tr class="queue-row">
+                <td><span class="badge bg-success rounded-pill">${p.position}</span></td>
+                <td class="fw-semibold">${esc(p.firstName)} ${esc(p.lastName)}</td>
+                <td class="text-muted small">${esc(p.phone) || '—'}</td>
+                <td class="text-muted small">${fmtTime(p.visitTime)}</td>
+                <td class="text-center">
+                    ${pending > 0
+                        ? `<span class="badge bg-warning text-dark">${pending} unsent</span>`
+                        : `<span class="text-muted small">—</span>`}
+                </td>
+                <td class="d-flex gap-1 flex-wrap">
+                    <button class="btn btn-sm btn-success py-1 px-2"
+                            onclick="openPrescribeModal('${p.recordId}','${p.appointmentId}','${esc(p.firstName)} ${esc(p.lastName)}')">
+                        <i class="bi bi-capsule me-1"></i>Prescribe
+                    </button>
+                    ${hasRecord && pending > 0 ? `
+                    <button class="btn btn-sm btn-primary py-1 px-2"
+                            onclick="sendToBilling('${p.recordId}','${esc(p.firstName)} ${esc(p.lastName)}',${pending})">
+                        <i class="bi bi-cash-coin me-1"></i>Send to Billing
+                    </button>` : ''}
+                    <button class="btn btn-sm btn-outline-secondary py-1 px-2"
+                            onclick="openHistoryModal('${p.recordId}','${esc(p.firstName)} ${esc(p.lastName)}')"
+                            ${!hasRecord ? 'disabled title="No consultation record yet"' : ''}>
+                        <i class="bi bi-clock-history me-1"></i>History
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('queue-table-wrap').classList.remove('d-none');
+    } catch (e) {
+        document.getElementById('queue-loading').classList.add('d-none');
+        showToast('danger', 'Failed to load patients: ' + e.message);
+    }
+}
+
+// ─── Open modal ───────────────────────────────────────────────────────────────
+function openPrescribeModal(recordId, appointmentId, patientName) {
+    _selected = { recordId, appointmentId, patientName };
+
+    // Reset form
+    document.getElementById('modal-patient-name').textContent = patientName;
+    document.getElementById('drug-search').value = '';
+    document.getElementById('drug-id').value = '';
+    document.getElementById('drug-price').value = '0';
+    document.getElementById('drug-price-hint').textContent = '';
+    document.getElementById('dispense-as-whole').checked = false;
+    document.getElementById('doses-per-day').value = '';
+    document.getElementById('qty-per-dose').value = '';
+    document.getElementById('num-days').value = '';
+    document.getElementById('whole-qty').value = '';
+    document.getElementById('rx-route').value = 'ORAL';
+    document.getElementById('rx-instructions').value = '';
+    document.getElementById('rx-preview').classList.add('d-none');
+    _drugPrice = 0;
+    toggleMode(); // ensure correct mode shown
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('prescribeModal')).show();
+}
+
+// ─── Toggle standard / whole mode ─────────────────────────────────────────────
+function toggleMode() {
+    const whole = document.getElementById('dispense-as-whole').checked;
+    document.getElementById('mode-standard').classList.toggle('d-none', whole);
+    document.getElementById('mode-whole').classList.toggle('d-none', !whole);
+    updatePreview();
+}
+
+// ─── Live preview ─────────────────────────────────────────────────────────────
+function updatePreview() {
+    const price = _drugPrice;
+    const whole = document.getElementById('dispense-as-whole').checked;
+    const preview = document.getElementById('rx-preview');
+    const text    = document.getElementById('rx-preview-text');
+
+    if (whole) {
+        const qty = parseInt(document.getElementById('whole-qty').value) || 0;
+        if (qty > 0 && price > 0) {
+            text.textContent = qty + ' unit(s) · ' + fmtTZS(qty * price);
+            preview.classList.remove('d-none');
+        } else if (qty > 0) {
+            text.textContent = qty + ' unit(s) — price not set';
+            preview.classList.remove('d-none');
+        } else {
+            preview.classList.add('d-none');
+        }
+    } else {
+        const d = parseInt(document.getElementById('doses-per-day').value) || 0;
+        const q = parseInt(document.getElementById('qty-per-dose').value)   || 0;
+        const n = parseInt(document.getElementById('num-days').value)       || 0;
+        if (d > 0 && q > 0 && n > 0) {
+            const total = d * q * n;
+            text.textContent = d + ' × ' + q + ' × ' + n + ' = ' + total + ' pill(s)'
+                + (price > 0 ? ' · ' + fmtTZS(total * price) : '');
+            preview.classList.remove('d-none');
+        } else {
+            preview.classList.add('d-none');
+        }
+    }
+}
+
+// ─── Drug autocomplete ────────────────────────────────────────────────────────
+let _drugTimer = null;
+function debounceDrug(inp) {
+    clearTimeout(_drugTimer);
+    document.getElementById('drug-id').value = '';
+    document.getElementById('drug-price').value = '0';
+    document.getElementById('drug-price-hint').textContent = '';
+    _drugPrice = 0;
+    updatePreview();
+    const q = inp.value.trim();
+    if (q.length < 2) { hideDrop('drug-drop'); return; }
+    _drugTimer = setTimeout(() => searchDrug(q), 280);
+}
+async function searchDrug(q) {
+    try {
+        const r = await fetch('/doctor/api/catalogue/pharmacy/search?q=' + encodeURIComponent(q));
+        const items = await r.json();
+        const drop = document.getElementById('drug-drop');
+        drop.innerHTML = items.map(i =>
+            `<div class="ac-item" data-id="${i.id}" data-name="${esc(i.name)}" data-price="${i.price || 0}">
+                <strong>${esc(i.name)}</strong>
+                <small class="text-muted ms-1">${esc(i.classification || '')}</small>
+                <span class="float-end text-success small">${fmtTZS(i.price || 0)}</span>
+            </div>`
+        ).join('');
+        drop.querySelectorAll('.ac-item').forEach(el => el.addEventListener('click', () => {
+            document.getElementById('drug-search').value = el.dataset.name;
+            document.getElementById('drug-id').value = el.dataset.id;
+            _drugPrice = parseFloat(el.dataset.price) || 0;
+            document.getElementById('drug-price').value = _drugPrice;
+            document.getElementById('drug-price-hint').textContent =
+                'Unit price: ' + fmtTZS(_drugPrice);
+            hideDrop('drug-drop');
+            updatePreview();
+        }));
+        drop.style.display = items.length ? 'block' : 'none';
+    } catch (e) { console.error(e); }
+}
+document.addEventListener('click', e => {
+    if (!e.target.closest('#drug-search') && !e.target.closest('#drug-drop'))
+        hideDrop('drug-drop');
+});
+function hideDrop(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+
+// ─── Save prescription ────────────────────────────────────────────────────────
+async function savePrescription() {
+    if (!_selected) return;
+
+    const priceItemId = document.getElementById('drug-id').value.trim();
+    if (!priceItemId) {
+        showToast('warning', 'Please select a medication from the catalogue.');
+        return;
+    }
+
+    const whole = document.getElementById('dispense-as-whole').checked;
+    let dosesPerDay, quantityPerDose, numberOfDays;
+
+    if (whole) {
+        dosesPerDay = parseInt(document.getElementById('whole-qty').value);
+        if (!dosesPerDay || dosesPerDay < 1) {
+            showToast('warning', 'Please enter a quantity.');
+            return;
+        }
+    } else {
+        dosesPerDay     = parseInt(document.getElementById('doses-per-day').value);
+        quantityPerDose = parseInt(document.getElementById('qty-per-dose').value);
+        numberOfDays    = parseInt(document.getElementById('num-days').value);
+        if (!dosesPerDay || !quantityPerDose || !numberOfDays) {
+            showToast('warning', 'Doses per day, quantity per dose, and number of days are required.');
+            return;
+        }
+    }
+
+    // If no recordId yet, auto-create a linked consultation record
+    let recordId = _selected.recordId;
+    if (!recordId || recordId === 'null') {
+        if (!_selected.appointmentId || _selected.appointmentId === 'null') {
+            showToast('warning', 'Cannot resolve consultation record — missing appointment.');
+            return;
+        }
+        try {
+            const ensureRes = await fetch('/doctor/api/appointments/' + _selected.appointmentId + '/ensure-record', {
+                method: 'POST'
+            });
+            const ensureData = await ensureRes.json();
+            if (!ensureRes.ok || !ensureData.recordId) throw new Error(ensureData.message || 'Failed');
+            recordId = ensureData.recordId;
+            _selected.recordId = recordId; // cache for next prescription
+        } catch (e) {
+            showToast('danger', 'Could not create consultation record: ' + e.message);
+            return;
+        }
+    }
+
+    const btn = document.getElementById('btn-prescribe-save');
+    btn.disabled = true;
+
+    try {
+        const body = {
+            priceItemId,
+            dispenseAsWhole: String(whole),
+            dosesPerDay:     String(dosesPerDay),
+            quantityPerDose: quantityPerDose != null ? String(quantityPerDose) : null,
+            numberOfDays:    numberOfDays    != null ? String(numberOfDays)    : null,
+            route:           document.getElementById('rx-route').value,
+            instructions:    document.getElementById('rx-instructions').value.trim() || null
+        };
+
+        const res = await fetch('/doctor/api/prescriptions/' + recordId + '/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Failed to save prescription');
+
+        const total = data.totalQty || 1;
+        showToast('success', data.drug + ' prescribed — ' + total + ' unit(s) to dispense.');
+        bootstrap.Modal.getInstance(document.getElementById('prescribeModal')).hide();
+        loadQueue(); // refresh queue badges
+    } catch (e) {
+        showToast('danger', 'Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+// ─── Prescription History ─────────────────────────────────────────────────────
+const STATUS_BADGE = {
+    PENDING:             ['bg-secondary', 'Pending'],
+    AWAITING_PAYMENT:    ['bg-warning text-dark', 'Awaiting Payment'],
+    READY_TO_DISPENSE:   ['bg-success', 'Ready to Dispense'],
+    IN_PROGRESS:         ['bg-info text-dark', 'In Progress'],
+    PARTIALLY_DISPENSED: ['bg-primary', 'Part. Dispensed'],
+    DISPENSED:           ['bg-success', 'Dispensed'],
+    ON_HOLD:             ['bg-danger', 'On Hold'],
+    OUT_OF_STOCK:        ['bg-dark', 'Out of Stock']
+};
+
+async function openHistoryModal(recordId, patientName) {
+    if (!recordId || recordId === 'null') return;
+
+    document.getElementById('history-patient-name').textContent = patientName;
+    document.getElementById('history-loading').classList.remove('d-none');
+    document.getElementById('history-empty').classList.add('d-none');
+    document.getElementById('history-content').classList.add('d-none');
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('historyModal')).show();
+
+    try {
+        const r = await fetch('/doctor/api/prescriptions/' + recordId + '/history');
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        const list = await r.json();
+
+        document.getElementById('history-loading').classList.add('d-none');
+
+        if (!list.length) {
+            document.getElementById('history-empty').classList.remove('d-none');
+            return;
+        }
+
+        document.getElementById('history-tbody').innerHTML = list.map((px, i) => {
+            const [badgeClass, badgeLabel] = STATUS_BADGE[px.pharmacyStatus] || ['bg-secondary', px.pharmacyStatus];
+            const schedule = px.dispenseAsWhole
+                ? (px.totalQty + ' unit(s)')
+                : (px.dosesPerDay && px.quantityPerDose && px.numberOfDays
+                    ? px.dosesPerDay + ' × ' + px.quantityPerDose + ' × ' + px.numberOfDays + ' days'
+                    : (px.dosage + ' ' + px.frequency + ' / ' + px.duration));
+            const di = px.dispenseInfo;
+            return `<tr>
+                <td><span class="badge bg-success-subtle text-success">${i + 1}</span></td>
+                <td class="fw-semibold">${esc(px.drug)}</td>
+                <td class="small">${esc(schedule)}</td>
+                <td class="small">${esc(px.route) || '—'}</td>
+                <td class="small text-muted">${esc(px.instructions) || '—'}</td>
+                <td class="text-center">${px.totalQty}</td>
+                <td><span class="badge ${badgeClass}">${badgeLabel}</span></td>
+                <td class="small">${di ? esc(di.pharmacistName) : '—'}</td>
+                <td class="small text-muted">${di && di.dispensedAt ? fmtTime(di.dispensedAt) : '—'}</td>
+                <td class="small text-muted">${di && di.dispensingNotes ? esc(di.dispensingNotes) : '—'}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('history-content').classList.remove('d-none');
+    } catch (e) {
+        document.getElementById('history-loading').classList.add('d-none');
+        showToast('danger', 'Could not load history: ' + e.message);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadQueue);
+</script>
+
+<th:block th:replace="~{doctor/fragments :: scripts}"></th:block>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{doctor/fragments :: head('My Active Patients')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{doctor/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{doctor/fragments :: topbar('My Active Patients')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{doctor/fragments :: alerts}"></th:block>
+
+            <!-- Header -->
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-person-check-fill text-success me-2"></i>My Active Patients
+                    </h5>
+                    <small class="text-muted">Patients still in the facility after your consultation</small>
+                </div>
+                <span class="badge bg-success fs-6"
+                      th:text="${#lists.size(activePatients)} + ' patient(s)'">0 patients</span>
+            </div>
+
+            <!-- Table -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient</th>
+                                <th>Disposition</th>
+                                <th>Visit Date</th>
+                                <th style="min-width:260px">Notes</th>
+                                <th></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(activePatients)}">
+                                <td colspan="6" class="text-center text-muted py-5">
+                                    <i class="bi bi-check-circle fs-3 d-block mb-2 text-success"></i>
+                                    No active patients — all finalised patients have been discharged.
+                                </td>
+                            </tr>
+                            <tr th:each="mr, iter : ${activePatients}">
+                                <td class="text-muted small" th:text="${iter.count}"></td>
+                                <td>
+                                    <div class="fw-semibold"
+                                         th:text="${mr.appointment.patient.firstName + ' ' + mr.appointment.patient.lastName}">—</div>
+                                    <small class="text-muted"
+                                           th:text="${mr.appointment.patient.phone}">—</small>
+                                </td>
+                                <td>
+                                    <span class="badge"
+                                          th:classappend="${mr.nextStep != null and mr.nextStep.name() == 'ADMITTED'}         ? 'bg-purple'
+                                                        : (${mr.nextStep != null and mr.nextStep.name() == 'REFERRED_DOCTOR'}    ? 'bg-info text-dark'
+                                                        : (${mr.nextStep != null and mr.nextStep.name() == 'REFERRED_SPECIALIST'} ? 'bg-primary'
+                                                        : (${mr.nextStep != null and mr.nextStep.name() == 'SCHEDULE_SURGERY'}    ? 'bg-danger'
+                                                        : 'bg-secondary')))"
+                                          style="--bs-purple: #7c3aed;"
+                                          th:text="${mr.nextStep != null ? #strings.replace(mr.nextStep.name(), '_', ' ') : '—'}">—</span>
+                                </td>
+                                <td class="small"
+                                    th:text="${mr.visitDate != null ? #temporals.format(mr.visitDate, 'dd MMM yyyy') : '—'}">—</td>
+                                <td>
+                                    <textarea class="form-control form-control-sm note-field"
+                                              rows="2"
+                                              placeholder="Add a note…"
+                                              th:text="${mr.doctorNote}"></textarea>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-success save-btn"
+                                            th:data-record-id="${mr.id}"
+                                            onclick="saveNote(this)">
+                                        <i class="bi bi-floppy me-1"></i>Save
+                                    </button>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{doctor/fragments :: scripts}"></th:block>
+
+<style>
+    .bg-purple { background-color: #7c3aed !important; color: #fff !important; }
+</style>
+
+<script>
+async function saveNote(btn) {
+    const row      = btn.closest('tr');
+    const textarea = row.querySelector('.note-field');
+    const recordId = btn.dataset.recordId;
+    btn.disabled   = true;
+    btn.innerHTML  = '<span class="spinner-border spinner-border-sm"></span>';
+    try {
+        const res = await fetch(`/doctor/medical-records/${recordId}/note`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ note: textarea.value })
+        });
+        btn.innerHTML = res.ok ? '<i class="bi bi-check2 me-1"></i>Saved' : '<i class="bi bi-x me-1"></i>Error';
+    } catch (_) {
+        btn.innerHTML = '<i class="bi bi-x me-1"></i>Error';
+    }
+    btn.disabled = false;
+    setTimeout(() => { btn.innerHTML = '<i class="bi bi-floppy me-1"></i>Save'; }, 2000);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{doctor/fragments :: head('Consultation')}"></th:block>
+    <style>
+        @media print {
+            /* Hide the entire app shell */
+            #wrapper, .toast-container, #finalizeModal { display: none !important; }
+
+            /* Show only the print area */
+            #printArea { display: block !important; }
+
+            body { background: #fff; margin: 0; font-family: Arial, sans-serif; font-size: 11pt; color: #000; }
+
+            .print-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+            .print-header h3 { margin: 0; font-size: 16pt; }
+            .print-header p  { margin: 2px 0; font-size: 9pt; color: #444; }
+
+            .print-section { margin-bottom: 14px; }
+            .print-section-title {
+                font-size: 11pt; font-weight: bold; text-transform: uppercase;
+                border-bottom: 1px solid #999; padding-bottom: 3px; margin-bottom: 6px;
+                letter-spacing: .04em;
+            }
+            .print-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+            .print-table th, .print-table td { border: 1px solid #bbb; padding: 4px 7px; font-size: 10pt; }
+            .print-table th { background: #f0f0f0; font-weight: bold; }
+            .print-row { display: flex; gap: 16px; margin-bottom: 5px; }
+            .print-field { flex: 1; }
+            .print-label { font-size: 9pt; color: #555; font-weight: bold; }
+            .print-value { font-size: 10.5pt; margin-top: 1px; }
+            .print-vitals { display: flex; flex-wrap: wrap; gap: 10px; }
+            .print-vital-badge { border: 1px solid #ccc; padding: 2px 8px; border-radius: 4px; font-size: 9.5pt; }
+            .print-result-normal  { color: #196c2e; }
+            .print-result-abnormal { color: #8a5a00; }
+            .print-result-critical { color: #b00020; font-weight: bold; }
+            .print-signature { margin-top: 40px; display: flex; justify-content: space-between; }
+            .print-signature-block { text-align: center; min-width: 180px; }
+            .print-signature-line { border-top: 1px solid #000; margin-top: 40px; padding-top: 4px; font-size: 9.5pt; }
+            .print-footer { text-align: center; font-size: 8.5pt; color: #666; border-top: 1px solid #ccc; padding-top: 6px; margin-top: 18px; }
+            .no-print { display: none !important; }
+        }
+        /* Hidden on screen, shown only when printing */
+        #printArea { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{doctor/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{doctor/fragments :: topbar('Patient Consultation')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{doctor/fragments :: alerts}"></th:block>
+
+            <!-- ── Page header ───────────────────────────────────────────────── -->
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <div>
+                    <h5 class="mb-0 fw-bold">
+                        <i class="bi bi-clipboard2-heart-fill text-primary me-2"></i>
+                        <span th:text="${patient.firstName + ' ' + patient.lastName}">Patient Name</span>
+                        <span th:if="${locked}" class="badge bg-danger locked-badge ms-2">LOCKED</span>
+                        <span th:if="${record != null and !locked}" class="badge bg-success locked-badge ms-2">DRAFT</span>
+                    </h5>
+                    <small class="text-muted"
+                           th:text="'Appointment ID: ' + ${appointment.id}"></small>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="printConsultation()"
+                            th:if="${record != null}">
+                        <i class="bi bi-printer me-1"></i>Print Consultation
+                    </button>
+                    <a th:href="@{/doctor/dashboard}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-left me-1"></i>Back to Queue
+                    </a>
+                </div>
+            </div>
+
+            <!-- ── READ-ONLY TRIAGE SUMMARY ───────────────────────────────────── -->
+            <div class="card border-0 shadow-sm mb-4 triage-panel" th:if="${triage != null}">
+                <div class="card-header bg-light fw-semibold">
+                    <i class="bi bi-clipboard2-pulse-fill text-success me-2"></i>Triage Summary
+                    <span class="ms-2 badge"
+                          th:classappend="${'triage-priority-' + triage.triagePriority}"
+                          th:text="${triage.triagePriority}">—</span>
+                    <small class="text-muted ms-2"
+                           th:text="'Assessed: ' + ${#temporals.format(triage.assessmentDateTime,'dd MMM yyyy HH:mm')}"></small>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+
+                        <!-- Chief complaint -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold mb-1">Chief Complaint</label>
+                            <p class="mb-0 text-body" th:text="${triage.chiefComplaint}">—</p>
+                        </div>
+
+                        <!-- Vital Signs -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold mb-1">Vital Signs</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="badge bg-light text-dark border badge-vitals"
+                                      th:if="${triage.temperature != null}">
+                                    <i class="bi bi-thermometer-half text-danger me-1"></i>
+                                    Temp: <span th:text="${triage.temperature}"></span>°C
+                                </span>
+                                <span class="badge bg-light text-dark border badge-vitals"
+                                      th:if="${triage.bloodPressureSystolic != null}">
+                                    <i class="bi bi-heart-pulse text-danger me-1"></i>
+                                    BP: <span th:text="${triage.bloodPressureSystolic + '/' + triage.bloodPressureDiastolic}"></span> mmHg
+                                </span>
+                                <span class="badge bg-light text-dark border badge-vitals"
+                                      th:if="${triage.pulseRate != null}">
+                                    <i class="bi bi-activity text-primary me-1"></i>
+                                    PR: <span th:text="${triage.pulseRate}"></span> bpm
+                                </span>
+                                <span class="badge bg-light text-dark border badge-vitals"
+                                      th:if="${triage.respiratoryRate != null}">
+                                    RR: <span th:text="${triage.respiratoryRate}"></span>/min
+                                </span>
+                                <span class="badge bg-light text-dark border badge-vitals"
+                                      th:if="${triage.oxygenSaturation != null}">
+                                    <i class="bi bi-lungs text-info me-1"></i>
+                                    SpO₂: <span th:text="${triage.oxygenSaturation}"></span>%
+                                </span>
+                                <span class="badge bg-light text-dark border badge-vitals"
+                                      th:if="${triage.bmi != null}">
+                                    BMI: <span th:text="${triage.bmi}"></span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Allergies, Pain, Fall Risk -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-semibold mb-1">Known Allergies</label>
+                            <p class="mb-0" th:text="${triage.knownAllergies != null ? triage.knownAllergies : '—'}">—</p>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-semibold mb-1">Pain Score</label>
+                            <p class="mb-0">
+                                <span th:if="${triage.hasPain}"
+                                      class="badge bg-danger"
+                                      th:text="'Score: ' + ${triage.painScore} + ' — ' + ${triage.painLocation}">—</span>
+                                <span th:if="${!triage.hasPain}" class="text-muted">No pain reported</span>
+                            </p>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-semibold mb-1">Fall Risk / Ambulation</label>
+                            <p class="mb-0">
+                                <span th:if="${triage.fallRisk}" class="badge bg-warning text-dark me-1">
+                                    Fall Risk (Score: <span th:text="${triage.fallScore}"></span>)
+                                </span>
+                                <span th:text="${triage.modeOfAmbulation != null ? triage.modeOfAmbulation : '—'}">—</span>
+                            </p>
+                        </div>
+
+                        <!-- Triage notes -->
+                        <div class="col-12" th:if="${triage.notes != null and !#strings.isEmpty(triage.notes)}">
+                            <label class="form-label fw-semibold mb-1">Triage Notes</label>
+                            <p class="mb-0 fst-italic text-secondary" th:text="${triage.notes}">—</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── LOCKED NOTICE ──────────────────────────────────────────────── -->
+            <div th:if="${locked}" class="alert alert-warning d-flex align-items-center mb-4">
+                <i class="bi bi-lock-fill fs-5 me-2"></i>
+                <span>This consultation has been <strong>finalized</strong> and is read-only.
+                      Contact an administrator for an authorized override.</span>
+            </div>
+
+            <!-- ── CONSULTATION FORM ──────────────────────────────────────────── -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <!-- Tab navigation -->
+                    <ul class="nav nav-pills consult-tabs" id="consultTabs">
+                        <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#tabHistory">
+                            <i class="bi bi-journal-text me-1"></i>History &amp; Examination</a></li>
+                        <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabDiagnosis">
+                            <i class="bi bi-file-earmark-medical me-1"></i>Diagnosis &amp; Treatment</a></li>
+                        <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabDisposition">
+                            <i class="bi bi-arrow-right-circle me-1"></i>Disposition</a></li>
+                    </ul>
+                </div>
+
+                <div class="card-body">
+                    <div class="tab-content" id="consultTabContent">
+
+                        <!-- ════════════════════ 1. HISTORY & EXAMINATION ════════════════════ -->
+                        <div class="tab-pane fade show active" id="tabHistory">
+                            <div class="row g-3">
+
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Chief Complaints <span class="text-danger">*</span></label>
+                                    <textarea id="chiefComplaints" rows="3" class="form-control"
+                                              th:readonly="${locked}"
+                                              th:text="${record != null ? record.chiefComplaints : triage?.chiefComplaint}"
+                                              placeholder="Describe the patient's chief complaints…"></textarea>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">History of Presenting Illness</label>
+                                    <textarea id="historyOfPresentingIllness" rows="3" class="form-control"
+                                              th:readonly="${locked}"
+                                              th:text="${record?.historyOfPresentingIllness}"
+                                              placeholder="Onset, duration, character, severity, associated symptoms…"></textarea>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Past Medical History</label>
+                                    <textarea id="pastMedicalHistory" rows="3" class="form-control"
+                                              th:readonly="${locked}"
+                                              th:text="${record?.pastMedicalHistory}"
+                                              placeholder="Chronic conditions, previous illnesses…"></textarea>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Past Surgical History</label>
+                                    <textarea id="pastSurgicalHistory" rows="3" class="form-control"
+                                              th:readonly="${locked}"
+                                              th:text="${record?.pastSurgicalHistory}"
+                                              placeholder="Previous operations with dates…"></textarea>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Family &amp; Social History</label>
+                                    <textarea id="familySocialHistory" rows="3" class="form-control"
+                                              th:readonly="${locked}"
+                                              th:text="${record?.familySocialHistory}"
+                                              placeholder="Relevant family history, smoking, alcohol, occupation…"></textarea>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Drug &amp; Food Allergies</label>
+                                    <textarea id="drugFoodAllergies" rows="3" class="form-control"
+                                              th:readonly="${locked}"
+                                              th:text="${record?.drugFoodAllergies != null ? record.drugFoodAllergies : triage?.knownAllergies}"
+                                              placeholder="List known allergies and reactions…"></textarea>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Current Symptoms</label>
+                                    <textarea id="currentSymptoms" rows="3" class="form-control"
+                                              th:readonly="${locked}"
+                                              th:text="${record?.currentSymptoms}"
+                                              placeholder="Describe current presenting symptoms…"></textarea>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Comorbidities</label>
+                                    <textarea id="comorbidities" rows="3" class="form-control"
+                                              th:readonly="${locked}"
+                                              th:text="${record?.comorbidities}"
+                                              placeholder="e.g. Diabetes, Hypertension, or None…"></textarea>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Mode of Ambulation</label>
+                                    <select id="modeOfAmbulation" class="form-select" th:disabled="${locked}">
+                                        <option value="">— Select —</option>
+                                        <option th:each="mode : ${ambulationValues}"
+                                                th:value="${mode.name()}"
+                                                th:selected="${record?.modeOfAmbulation == mode}"
+                                                th:text="${mode.displayName}">Option</option>
+                                    </select>
+                                </div>
+
+                                <!-- Pain & Risk Assessment -->
+                                <div class="col-12">
+                                    <hr class="my-1"/>
+                                    <p class="fw-semibold text-muted mb-2" style="font-size:0.85rem;letter-spacing:.04em;">
+                                        <i class="bi bi-bandaid-fill text-warning me-1"></i>PAIN &amp; RISK ASSESSMENT
+                                    </p>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" id="hasPain"
+                                               th:disabled="${locked}"
+                                               th:checked="${record?.hasPain}"
+                                               onchange="toggleDocPain(this)"/>
+                                        <label class="form-check-label fw-semibold" for="hasPain">Patient has pain?</label>
+                                    </div>
+                                    <div id="docPainDetails" class="row g-2" style="display:none;">
+                                        <div class="col-12">
+                                            <label class="form-label">Pain Score <small class="text-muted">(0 = none, 10 = worst)</small></label>
+                                            <div class="d-flex align-items-center gap-3">
+                                                <input type="range" class="form-range flex-grow-1" id="painScoreRange"
+                                                       min="0" max="10" step="1"
+                                                       th:value="${record?.painScore != null ? record.painScore : 0}"
+                                                       oninput="document.getElementById('painScore').value=this.value"/>
+                                                <input type="number" class="form-control text-center fw-bold"
+                                                       id="painScore" min="0" max="10" style="width:70px;"
+                                                       th:value="${record?.painScore != null ? record.painScore : 0}"
+                                                       th:disabled="${locked}"
+                                                       oninput="document.getElementById('painScoreRange').value=this.value"/>
+                                            </div>
+                                            <div class="d-flex justify-content-between mt-1">
+                                                <small class="text-success">0 None</small>
+                                                <small class="text-warning">5 Moderate</small>
+                                                <small class="text-danger">10 Severe</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Pain Location</label>
+                                            <input type="text" class="form-control" id="painLocation"
+                                                   th:readonly="${locked}"
+                                                   th:value="${record?.painLocation}"
+                                                   placeholder="e.g. Lower back, left knee…"/>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-3">
+                                    <label class="form-label fw-semibold d-block">Fall Risk</label>
+                                    <div class="d-flex gap-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="fallRisk"
+                                                   id="fallRiskYes" value="true" th:disabled="${locked}"
+                                                   th:checked="${record?.fallRisk}"
+                                                   onchange="toggleDocFallScore(true)"/>
+                                            <label class="form-check-label" for="fallRiskYes">Yes</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="fallRisk"
+                                                   id="fallRiskNo" value="false" th:disabled="${locked}"
+                                                   th:checked="${record?.fallRisk == null or !record.fallRisk}"
+                                                   onchange="toggleDocFallScore(false)"/>
+                                            <label class="form-check-label" for="fallRiskNo">No</label>
+                                        </div>
+                                    </div>
+                                    <div id="docFallScoreGroup" class="mt-2" style="display:none;">
+                                        <label class="form-label">Fall Score</label>
+                                        <input type="number" class="form-control" id="fallScore"
+                                               min="0" max="100" th:readonly="${locked}"
+                                               th:value="${record?.fallScore}"
+                                               placeholder="0 – 100"/>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-3">
+                                    <label class="form-label fw-semibold d-block">Infectious Disease Risk</label>
+                                    <div class="d-flex gap-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="infectiousDiseaseRisk"
+                                                   id="idrYes" value="true" th:disabled="${locked}"
+                                                   th:checked="${record?.infectiousDiseaseRisk}"/>
+                                            <label class="form-check-label text-danger fw-semibold" for="idrYes">Yes</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="infectiousDiseaseRisk"
+                                                   id="idrNo" value="false" th:disabled="${locked}"
+                                                   th:checked="${record?.infectiousDiseaseRisk == null or !record.infectiousDiseaseRisk}"/>
+                                            <label class="form-check-label" for="idrNo">No</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <hr class="my-1"/>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">Physical Examination <span class="text-danger">*</span></label>
+                                    <textarea id="physicalExamination" rows="4" class="form-control"
+                                              th:readonly="${locked}"
+                                              th:text="${record?.physicalExamination}"
+                                              placeholder="General appearance, systemic examination findings…"></textarea>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">Clinical Notes / Doctor's Remarks
+                                        <small class="text-muted fw-normal">(optional)</small></label>
+                                    <textarea id="clinicalNotes" rows="3" class="form-control"
+                                              th:readonly="${locked}"
+                                              th:text="${record?.clinicalNotes}"
+                                              placeholder="Additional observations and remarks…"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ════════════════════ 2. DIAGNOSIS & TREATMENT ════════════════════ -->
+                        <div class="tab-pane fade" id="tabDiagnosis">
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Provisional Diagnosis <span class="text-danger">*</span></label>
+                                    <input type="text" id="provisionalDiagnosis" class="form-control"
+                                           th:readonly="${locked}"
+                                           th:value="${record?.provisionalDiagnosis}"
+                                           placeholder="Initial working diagnosis…"/>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Final Diagnosis</label>
+                                    <input type="text" id="finalDiagnosis" class="form-control"
+                                           th:readonly="${locked}"
+                                           th:value="${record?.finalDiagnosis}"
+                                           placeholder="Confirmed diagnosis…"/>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">Treatment Plan <span class="text-danger">*</span></label>
+                                    <textarea id="treatmentPlan" rows="5" class="form-control"
+                                              th:readonly="${locked}"
+                                              th:text="${record?.treatmentPlan}"
+                                              placeholder="Outline the management and treatment plan…"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ════════════════════ 5. DISPOSITION ════════════════════ -->
+                        <div class="tab-pane fade" id="tabDisposition">
+                            <div class="row g-3">
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label fw-semibold">Next Step <span class="text-danger">*</span></label>
+                                    <select id="nextStep" class="form-select"
+                                            th:disabled="${locked}" onchange="handleNextStepChange()">
+                                        <option value="">— Select disposition —</option>
+                                        <option value="DISCHARGED"
+                                                th:selected="${record?.nextStep?.name() == 'DISCHARGED'}">Discharged</option>
+                                        <option value="ADMITTED"
+                                                th:selected="${record?.nextStep?.name() == 'ADMITTED'}">Admitted</option>
+                                        <option value="REFERRED_DOCTOR"
+                                                th:selected="${record?.nextStep?.name() == 'REFERRED_DOCTOR'}">Forward to General Doctor</option>
+                                        <option value="REFERRED_SPECIALIST"
+                                                th:selected="${record?.nextStep?.name() == 'REFERRED_SPECIALIST'}">Forward to Specialist</option>
+                                        <option value="SCHEDULE_SURGERY"
+                                                th:selected="${record?.nextStep?.name() == 'SCHEDULE_SURGERY'}">Schedule Surgery / Procedure</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label fw-semibold">Follow-up Date
+                                        <small class="text-muted fw-normal">(optional)</small></label>
+                                    <input type="date" id="followUpDate" class="form-control"
+                                           th:readonly="${locked}"
+                                           th:value="${record?.followUpDate != null ? #temporals.format(record.followUpDate,'yyyy-MM-dd') : ''}"/>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">Follow-up Instructions</label>
+                                    <textarea id="followUpInstructions" rows="3" class="form-control"
+                                              th:readonly="${locked}"
+                                              th:text="${record?.followUpInstructions}"
+                                              placeholder="Advice for the patient on follow-up…"></textarea>
+                                </div>
+
+                                <!-- Admit to Ward panel — shown when ADMITTED -->
+                                <div class="col-12" id="wardPanel"
+                                     th:style="${record?.nextStep?.name() == 'ADMITTED'} ? '' : 'display:none'">
+                                    <div class="alert alert-warning d-flex align-items-start gap-2">
+                                        <i class="bi bi-hospital-fill fs-5 mt-0"></i>
+                                        <div>
+                                            <strong>Admit to Ward</strong><br/>
+                                            Finalizing with this disposition will automatically create a ward admission record.
+                                            The assigned nurse will confirm the ward and assign a bed number.
+                                        </div>
+                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label fw-semibold">Ward / Unit <span class="text-muted fw-normal">(suggested)</span></label>
+                                            <input type="text" id="wardName" class="form-control"
+                                                   th:readonly="${locked}"
+                                                   placeholder="e.g. General Ward, ICU, Paediatrics…"/>
+                                        </div>
+                                        <div class="col-12 col-md-3">
+                                            <label class="form-label fw-semibold">Expected Stay (days) <span class="text-danger">*</span></label>
+                                            <input type="number" id="expectedAdmissionDays" class="form-control"
+                                                   th:readonly="${locked}"
+                                                   min="1" max="365" placeholder="e.g. 3"/>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label fw-semibold">Assign Ward Nurse <span class="text-danger">*</span></label>
+                                            <select id="nurseId" class="form-select" th:disabled="${locked}">
+                                                <option value="">— Not assigned yet —</option>
+                                                <option th:each="nurse : ${wardNurses}"
+                                                        th:value="${nurse.id}"
+                                                        th:text="${nurse.firstName + ' ' + nurse.lastName
+                                                                   + ' [' + nurse.staffRole + ']'}">
+                                                </option>
+                                            </select>
+                                            <div class="form-text">The nurse will be responsible for ward and bed assignment.</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Forward to Doctor panel — shown when REFERRED -->
+                                <div class="col-12" id="forwardPanel"
+                                     th:style="${record?.nextStep?.name() == 'REFERRED_DOCTOR' or record?.nextStep?.name() == 'REFERRED_SPECIALIST'} ? '' : 'display:none'">
+                                    <div class="alert alert-info d-flex align-items-start gap-2">
+                                        <i class="bi bi-info-circle-fill fs-5 mt-0"></i>
+                                        <div>
+                                            <strong>Patient Forwarding</strong><br/>
+                                            Selecting a doctor below will:
+                                            <ul class="mb-0 mt-1">
+                                                <li>Create a new appointment for the selected provider.</li>
+                                                <li>Generate a consultation fee invoice for the receptionist to collect
+                                                    (<strong>TZS 10,000</strong> for General Doctor /
+                                                     <strong>TZS 20,000</strong> for Specialist).</li>
+                                                <li>The next consultation will be <strong>blocked</strong> until payment is confirmed.</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <label class="form-label fw-semibold">Forward Patient To</label>
+                                    <select id="forwardedToDoctorId" class="form-select"
+                                            th:disabled="${locked}">
+                                        <option value="">— Select doctor / specialist —</option>
+                                        <option th:each="doc : ${doctors}"
+                                                th:value="${doc.id}"
+                                                th:selected="${record?.forwardedToDoctor?.id == doc.id}"
+                                                th:text="${'Dr. ' + doc.firstName + ' ' + doc.lastName
+                                                           + (doc.specialization != null ? ' — ' + doc.specialization : '')
+                                                           + ' [' + doc.staffRole + ']'}">—</option>
+                                    </select>
+                                </div>
+
+                                <!-- Schedule Surgery panel — shown when SCHEDULE_SURGERY -->
+                                <div class="col-12" id="surgeryPanel"
+                                     th:style="${record?.nextStep?.name() == 'SCHEDULE_SURGERY'} ? '' : 'display:none'">
+                                    <div class="alert alert-warning d-flex align-items-start gap-2">
+                                        <i class="bi bi-scissors fs-5 mt-0"></i>
+                                        <div>
+                                            <strong>Schedule Surgery / Procedure</strong><br/>
+                                            Finalizing with this disposition will create a surgery order visible to the OR nurse team.
+                                        </div>
+                                    </div>
+                                    <div class="row g-3">
+                                        <!-- Procedure search -->
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label fw-semibold">Procedure Name <span class="text-danger">*</span></label>
+                                            <input type="text" id="surgProcedureName" class="form-control"
+                                                   th:readonly="${locked}"
+                                                   placeholder="Type to search surgery catalog…"
+                                                   autocomplete="off"
+                                                   oninput="surgSearchProcedure(this.value)"/>
+                                            <input type="hidden" id="surgServicePriceItemId"/>
+                                            <div id="surgCatalogDropdown" class="list-group shadow-sm"
+                                                 style="position:absolute;z-index:1050;width:42%;display:none;max-height:180px;overflow-y:auto;"></div>
+                                        </div>
+                                        <!-- Urgency -->
+                                        <div class="col-12 col-md-3">
+                                            <label class="form-label fw-semibold">Urgency</label>
+                                            <select id="surgUrgency" class="form-select" th:disabled="${locked}">
+                                                <option value="ELECTIVE">Elective</option>
+                                                <option value="URGENT">Urgent</option>
+                                                <option value="EMERGENCY">Emergency</option>
+                                            </select>
+                                        </div>
+                                        <!-- Anesthesia -->
+                                        <div class="col-12 col-md-3">
+                                            <label class="form-label fw-semibold">Anesthesia</label>
+                                            <select id="surgAnesthesia" class="form-select" th:disabled="${locked}">
+                                                <option value="">— Select —</option>
+                                                <option value="GENERAL">General</option>
+                                                <option value="SPINAL">Spinal</option>
+                                                <option value="EPIDURAL">Epidural</option>
+                                                <option value="LOCAL">Local</option>
+                                                <option value="SEDATION">Sedation</option>
+                                                <option value="NONE">None</option>
+                                            </select>
+                                        </div>
+                                        <!-- Scheduled date -->
+                                        <div class="col-12 col-md-4">
+                                            <label class="form-label fw-semibold">Scheduled Date &amp; Time <span class="text-danger">*</span></label>
+                                            <input type="datetime-local" id="surgScheduledDate" class="form-control"
+                                                   th:readonly="${locked}"/>
+                                        </div>
+                                        <!-- Theater -->
+                                        <div class="col-12 col-md-4">
+                                            <label class="form-label fw-semibold">Operating Theater <span class="text-danger">*</span></label>
+                                            <input type="text" id="surgTheater" class="form-control"
+                                                   th:readonly="${locked}"
+                                                   placeholder="e.g. Theater 1"/>
+                                        </div>
+                                        <!-- Duration -->
+                                        <div class="col-12 col-md-4">
+                                            <label class="form-label fw-semibold">Est. Duration (min) <span class="text-danger">*</span></label>
+                                            <input type="number" id="surgDuration" class="form-control"
+                                                   th:readonly="${locked}"
+                                                   min="15" placeholder="e.g. 90"/>
+                                        </div>
+                                        <!-- Price -->
+                                        <div class="col-12 col-md-4">
+                                            <label class="form-label fw-semibold">Price (TZS)</label>
+                                            <input type="number" id="surgPrice" class="form-control"
+                                                   th:readonly="${locked}"
+                                                   step="0.01" min="0" placeholder="Auto-filled from catalog"/>
+                                        </div>
+                                        <!-- Assign nurses -->
+                                        <div class="col-12">
+                                            <label class="form-label fw-semibold">Assign Nursing Team <span class="text-danger">*</span></label>
+                                            <div id="surgNurseContainer" class="row g-2">
+                                                <div class="col-12 text-muted small">Loading available nurses…</div>
+                                            </div>
+                                            <input type="hidden" id="surgNurseIds"/>
+                                        </div>
+                                        <!-- Pre-op notes -->
+                                        <div class="col-12">
+                                            <label class="form-label fw-semibold">Pre-op Notes / Instructions</label>
+                                            <textarea id="surgPreopNotes" rows="3" class="form-control"
+                                                      th:readonly="${locked}"
+                                                      placeholder="Special prep instructions for the patient…"></textarea>
+                                        </div>
+                                        <!-- Consent -->
+                                        <div class="col-12">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox"
+                                                       id="surgConsent" th:disabled="${locked}"/>
+                                                <label class="form-check-label fw-semibold" for="surgConsent">
+                                                    Patient consent has been obtained
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+
+                <!-- ── WARD DIRECT ORDERS (admitted patients only) ─────────────────────── -->
+                <div th:if="${wardAssignment != null}" class="mt-0 border-top">
+                    <div class="card-body">
+                        <h6 class="fw-bold text-secondary mb-3">
+                            <i class="bi bi-hospital me-1"></i>Ward Direct Orders
+                            <span class="badge bg-secondary fw-normal ms-2"
+                                  th:text="${wardAssignment.ward + (wardAssignment.bedNumber != null ? ' · Bed ' + wardAssignment.bedNumber : '')}">—</span>
+                        </h6>
+                        <div class="row g-4">
+
+                            <!-- Ward Medication Order -->
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #198754!important">
+                                    <div class="card-header bg-success bg-opacity-10 fw-semibold text-success d-flex align-items-center gap-2">
+                                        <i class="bi bi-hospital"></i>Issue Ward Medication Order
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted small mb-3">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            This order goes directly into the ward nurse&rsquo;s medication administration record (MAR).
+                                        </p>
+                                        <form th:action="@{/doctor/consultation/{id}/ward-medication(id=${appointment.id})}" method="post">
+                                            <input type="hidden" name="assignmentId" th:value="${wardAssignment.id}"/>
+                                            <div class="row g-3 align-items-end">
+                                                <div class="col-12 col-md-6">
+                                                    <label class="form-label small fw-semibold">Medication <span class="text-danger">*</span></label>
+                                                    <input type="text" name="medicationName" required
+                                                           class="form-control form-control-sm"
+                                                           placeholder="e.g. Amoxicillin 500mg"/>
+                                                </div>
+                                                <div class="col-6 col-md-3">
+                                                    <label class="form-label small fw-semibold">Dose</label>
+                                                    <input type="text" name="dose"
+                                                           class="form-control form-control-sm"
+                                                           placeholder="e.g. 500mg"/>
+                                                </div>
+                                                <div class="col-6 col-md-3">
+                                                    <label class="form-label small fw-semibold">Route</label>
+                                                    <select name="route" class="form-select form-select-sm">
+                                                        <option value="">— Route —</option>
+                                                        <option value="Oral">Oral</option>
+                                                        <option value="IV">IV</option>
+                                                        <option value="IM">IM</option>
+                                                        <option value="SC">SC</option>
+                                                        <option value="Topical">Topical</option>
+                                                        <option value="Inhalation">Inhalation</option>
+                                                        <option value="Sublingual">Sublingual</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-12 col-md-6">
+                                                    <label class="form-label small fw-semibold">Scheduled Time</label>
+                                                    <input type="datetime-local" name="scheduledTime"
+                                                           class="form-control form-control-sm"/>
+                                                </div>
+                                                <div class="col-12 col-md-6">
+                                                    <label class="form-label small fw-semibold">Instructions</label>
+                                                    <input type="text" name="instructions"
+                                                           class="form-control form-control-sm"
+                                                           placeholder="Instructions to ward nurse (optional)"/>
+                                                </div>
+                                                <div class="col-12 d-flex align-items-end">
+                                                    <button type="submit" class="btn btn-success btn-sm w-100">
+                                                        <i class="bi bi-send me-1"></i>Send to Ward
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Ward Direct Lab Order -->
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #0dcaf0!important">
+                                    <div class="card-header fw-semibold d-flex align-items-center gap-2"
+                                         style="background:rgba(13,202,240,.10);color:#055160">
+                                        <i class="bi bi-flask"></i>Ward Direct Lab Order
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted small mb-3">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            Order a lab test directly for this admitted patient. Queued for the lab technician.
+                                        </p>
+                                        <form id="wardLabForm"
+                                              th:action="@{/doctor/consultation/{id}/ward-lab(id=${appointment.id})}"
+                                              method="post">
+                                            <div class="row g-3 align-items-end">
+                                                <div class="col-12 col-md-6" style="position:relative">
+                                                    <label class="form-label small fw-semibold">Lab Test <span class="text-danger">*</span></label>
+                                                    <input type="text" id="wardLabSearch"
+                                                           class="form-control form-control-sm"
+                                                           placeholder="Search lab test…"
+                                                           autocomplete="off"/>
+                                                    <input type="hidden" name="testName" id="wardLabTestName"/>
+                                                    <input type="hidden" name="itemId"   id="wardLabItemId"/>
+                                                    <div id="wardLabDropdown" class="autocomplete-list" style="display:none"></div>
+                                                </div>
+                                                <div class="col-6 col-md-3">
+                                                    <label class="form-label small fw-semibold">Urgency</label>
+                                                    <select name="urgency" class="form-select form-select-sm">
+                                                        <option value="ROUTINE">Routine</option>
+                                                        <option value="URGENT">Urgent</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-6 col-md-3">
+                                                    <label class="form-label small fw-semibold">Instructions</label>
+                                                    <input type="text" name="instructions"
+                                                           class="form-control form-control-sm"
+                                                           placeholder="Optional notes…"/>
+                                                </div>
+                                                <div class="col-12 d-flex align-items-end">
+                                                    <button type="submit" class="btn btn-sm w-100 text-dark"
+                                                            style="background:#0dcaf0"
+                                                            onclick="return validateWardLab()">
+                                                        <i class="bi bi-flask me-1"></i>Order Lab Test
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div><!-- /row -->
+                    </div><!-- /card-body -->
+                </div><!-- /ward-direct-orders -->
+
+                    </div><!-- /tab-content -->
+                </div><!-- /card-body -->
+
+                <!-- ── FORM ACTIONS ──────────────────────────────────────────────── -->
+                <div class="card-footer bg-white" th:if="${!locked}">
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" id="saveDraftBtn">
+                            <i class="bi bi-floppy me-1"></i>Save Draft
+                        </button>
+                        <button type="button" class="btn btn-success" id="finalizeBtn">
+                            <i class="bi bi-check2-all me-1"></i>Finalize Consultation
+                        </button>
+                    </div>
+                </div>
+            </div><!-- /card -->
+
+        </main>
+    </div>
+</div>
+
+<!-- ═══════════════════════════ PRINT AREA ═══════════════════════════════════ -->
+<div id="printArea" th:if="${record != null}">
+
+    <!-- Header -->
+    <div class="print-header">
+        <h3>GILGAL POLYCLINIC</h3>
+        <p th:text="'Patient Consultation Report'">Patient Consultation Report</p>
+        <p id="printDate"></p>
+    </div>
+
+    <!-- Patient Demographics -->
+    <div class="print-section">
+        <div class="print-section-title">Patient Information</div>
+        <div class="print-row">
+            <div class="print-field"><div class="print-label">Full Name</div>
+                <div class="print-value" th:text="${patient.firstName + ' ' + patient.lastName}">—</div></div>
+            <div class="print-field"><div class="print-label">Date of Birth</div>
+                <div class="print-value" th:text="${patient.dateOfBirth != null ? #temporals.format(patient.dateOfBirth,'dd MMM yyyy') : '—'}">—</div></div>
+            <div class="print-field"><div class="print-label">Gender</div>
+                <div class="print-value" th:text="${patient.gender}">—</div></div>
+            <div class="print-field"><div class="print-label">Visit Date</div>
+                <div class="print-value" th:text="${record.visitDate != null ? #temporals.format(record.visitDate,'dd MMM yyyy HH:mm') : '—'}">—</div></div>
+        </div>
+        <div class="print-row">
+            <div class="print-field"><div class="print-label">Attending Doctor</div>
+                <div class="print-value" th:text="${'Dr. ' + doctor.firstName + ' ' + doctor.lastName + (doctor.specialization != null ? ' — ' + doctor.specialization : '')}">—</div></div>
+            <div class="print-field"><div class="print-label">Phone</div>
+                <div class="print-value" th:text="${patient.phone ?: '—'}">—</div></div>
+            <div class="print-field"><div class="print-label">Marital Status</div>
+                <div class="print-value" th:text="${patient.maritalStatus ?: '—'}">—</div></div>
+            <div class="print-field"><div class="print-label">Occupation</div>
+                <div class="print-value" th:text="${patient.occupation ?: '—'}">—</div></div>
+        </div>
+    </div>
+
+    <!-- Triage Summary -->
+    <div class="print-section" th:if="${triage != null}">
+        <div class="print-section-title">Triage Summary</div>
+        <div class="print-vitals">
+            <span class="print-vital-badge" th:if="${triage.temperature != null}"
+                  th:text="'Temp: ' + ${triage.temperature} + ' °C'">—</span>
+            <span class="print-vital-badge" th:if="${triage.bloodPressureSystolic != null}"
+                  th:text="'BP: ' + ${triage.bloodPressureSystolic} + '/' + ${triage.bloodPressureDiastolic} + ' mmHg'">—</span>
+            <span class="print-vital-badge" th:if="${triage.pulseRate != null}"
+                  th:text="'Pulse: ' + ${triage.pulseRate} + ' bpm'">—</span>
+            <span class="print-vital-badge" th:if="${triage.respiratoryRate != null}"
+                  th:text="'RR: ' + ${triage.respiratoryRate} + '/min'">—</span>
+            <span class="print-vital-badge" th:if="${triage.oxygenSaturation != null}"
+                  th:text="'SpO₂: ' + ${triage.oxygenSaturation} + '%'">—</span>
+            <span class="print-vital-badge" th:if="${triage.bmi != null}"
+                  th:text="'BMI: ' + ${triage.bmi}">—</span>
+            <span class="print-vital-badge"
+                  th:text="'Priority: ' + ${triage.triagePriority}">—</span>
+        </div>
+        <div class="print-row" style="margin-top:6px;">
+            <div class="print-field"><div class="print-label">Chief Complaint</div>
+                <div class="print-value" th:text="${triage.chiefComplaint ?: '—'}">—</div></div>
+            <div class="print-field" th:if="${triage.knownAllergies != null}"><div class="print-label">Known Allergies</div>
+                <div class="print-value" th:text="${triage.knownAllergies}">—</div></div>
+        </div>
+    </div>
+
+    <!-- History & Examination -->
+    <div class="print-section">
+        <div class="print-section-title">History &amp; Examination</div>
+        <div class="print-row">
+            <div class="print-field"><div class="print-label">Chief Complaints</div>
+                <div class="print-value" th:text="${record.chiefComplaints ?: '—'}">—</div></div>
+        </div>
+        <div class="print-row">
+            <div class="print-field"><div class="print-label">History of Presenting Illness</div>
+                <div class="print-value" style="white-space:pre-wrap;" th:text="${record.historyOfPresentingIllness ?: '—'}">—</div></div>
+        </div>
+        <div class="print-row">
+            <div class="print-field"><div class="print-label">Past Medical History</div>
+                <div class="print-value" style="white-space:pre-wrap;" th:text="${record.pastMedicalHistory ?: '—'}">—</div></div>
+            <div class="print-field"><div class="print-label">Past Surgical History</div>
+                <div class="print-value" style="white-space:pre-wrap;" th:text="${record.pastSurgicalHistory ?: '—'}">—</div></div>
+        </div>
+        <div class="print-row">
+            <div class="print-field"><div class="print-label">Family / Social History</div>
+                <div class="print-value" style="white-space:pre-wrap;" th:text="${record.familySocialHistory ?: '—'}">—</div></div>
+            <div class="print-field"><div class="print-label">Drug / Food Allergies</div>
+                <div class="print-value" th:text="${record.drugFoodAllergies ?: '—'}">—</div></div>
+        </div>
+        <div class="print-row">
+            <div class="print-field"><div class="print-label">Physical Examination</div>
+                <div class="print-value" style="white-space:pre-wrap;" th:text="${record.physicalExamination ?: '—'}">—</div></div>
+        </div>
+        <div class="print-row" th:if="${record.clinicalNotes != null and !#strings.isEmpty(record.clinicalNotes)}">
+            <div class="print-field"><div class="print-label">Clinical Notes / Remarks</div>
+                <div class="print-value" style="white-space:pre-wrap;" th:text="${record.clinicalNotes}">—</div></div>
+        </div>
+    </div>
+
+    <!-- Diagnosis & Treatment -->
+    <div class="print-section">
+        <div class="print-section-title">Diagnosis &amp; Treatment</div>
+        <div class="print-row">
+            <div class="print-field"><div class="print-label">Provisional Diagnosis</div>
+                <div class="print-value" th:text="${record.provisionalDiagnosis ?: '—'}">—</div></div>
+            <div class="print-field"><div class="print-label">Final Diagnosis</div>
+                <div class="print-value" th:text="${record.finalDiagnosis ?: '—'}">—</div></div>
+        </div>
+        <div class="print-row">
+            <div class="print-field"><div class="print-label">Treatment Plan</div>
+                <div class="print-value" style="white-space:pre-wrap;" th:text="${record.treatmentPlan ?: '—'}">—</div></div>
+        </div>
+    </div>
+
+    <!-- Prescriptions -->
+    <div class="print-section" th:if="${!#lists.isEmpty(record.prescriptions)}">
+        <div class="print-section-title">Prescriptions</div>
+        <table class="print-table">
+            <thead><tr>
+                <th>Drug Name</th><th>Dose</th><th>Frequency</th><th>Duration</th><th>Route</th><th>Instructions</th>
+            </tr></thead>
+            <tbody>
+                <tr th:each="px : ${record.prescriptions}">
+                    <td th:text="${px.priceItem != null ? px.priceItem.productName : (px.medication != null ? px.medication.genericName : '—')}">—</td>
+                    <td th:text="${px.dosage}">—</td>
+                    <td th:text="${px.frequency}">—</td>
+                    <td th:text="${px.duration}">—</td>
+                    <td th:text="${px.route ?: '—'}">—</td>
+                    <td th:text="${px.instructions ?: '—'}">—</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Lab Requests & Results -->
+    <div class="print-section" th:if="${!#lists.isEmpty(record.labRequests)}">
+        <div class="print-section-title">Lab Requests &amp; Results</div>
+        <table class="print-table">
+            <thead><tr>
+                <th>Test</th><th>Urgency</th><th>Status</th>
+                <th>Result</th><th>Unit</th><th>Ref. Range</th><th>Interpretation</th><th>Notes</th>
+            </tr></thead>
+            <tbody>
+                <tr th:each="lr : ${record.labRequests}">
+                    <td th:text="${lr.testName}">—</td>
+                    <td th:text="${lr.urgency}">—</td>
+                    <td th:text="${lr.status}">—</td>
+                    <td th:text="${lr.result?.resultValue ?: '—'}">—</td>
+                    <td th:text="${lr.result?.unit ?: '—'}">—</td>
+                    <td th:text="${lr.result?.referenceRange ?: '—'}">—</td>
+                    <td th:classappend="${lr.result?.interpretation?.name() == 'CRITICAL'} ? 'print-result-critical' : (${lr.result?.interpretation?.name() == 'ABNORMAL'} ? 'print-result-abnormal' : 'print-result-normal')"
+                        th:text="${lr.result?.interpretation ?: '—'}">—</td>
+                    <td th:text="${lr.result?.notes ?: '—'}">—</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Disposition -->
+    <div class="print-section" th:if="${record.nextStep != null}">
+        <div class="print-section-title">Disposition</div>
+        <div class="print-row">
+            <div class="print-field"><div class="print-label">Next Step</div>
+                <div class="print-value" th:text="${record.nextStep}">—</div></div>
+            <div class="print-field" th:if="${record.followUpDate != null}"><div class="print-label">Follow-up Date</div>
+                <div class="print-value" th:text="${#temporals.format(record.followUpDate,'dd MMM yyyy')}">—</div></div>
+            <div class="print-field" th:if="${record.forwardedToDoctor != null}"><div class="print-label">Forwarded To</div>
+                <div class="print-value" th:text="${'Dr. ' + record.forwardedToDoctor.firstName + ' ' + record.forwardedToDoctor.lastName}">—</div></div>
+        </div>
+        <div class="print-row" th:if="${record.followUpInstructions != null and !#strings.isEmpty(record.followUpInstructions)}">
+            <div class="print-field"><div class="print-label">Follow-up Instructions</div>
+                <div class="print-value" style="white-space:pre-wrap;" th:text="${record.followUpInstructions}">—</div></div>
+        </div>
+    </div>
+
+    <!-- Signature -->
+    <div class="print-signature">
+        <div class="print-signature-block">
+            <div class="print-signature-line"
+                 th:text="${'Dr. ' + doctor.firstName + ' ' + doctor.lastName}">—</div>
+            <div style="font-size:9pt;color:#555;"
+                 th:text="${doctor.specialization != null ? doctor.specialization : 'Attending Doctor'}">—</div>
+        </div>
+        <div class="print-signature-block">
+            <div class="print-signature-line">Patient / Guardian Signature</div>
+        </div>
+    </div>
+
+    <div class="print-footer">
+        This document is confidential and intended solely for the named patient. — Gilgal Polyclinic
+    </div>
+</div>
+<!-- ════════════════════════════════════════════════════════════════════════════ -->
+
+<!-- ── FINALIZE CONFIRM MODAL ──────────────────────────────────────────────── -->
+<div class="modal fade" id="finalizeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-check2-all me-2 text-success"></i>Finalize Consultation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to <strong>finalize</strong> this consultation?</p>
+                <p class="text-danger mb-0">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    Once finalized, the record will be <strong>locked</strong> and cannot be edited without admin override.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmFinalizeBtn">
+                    <i class="bi bi-check2-all me-1"></i>Yes, Finalize
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── TOAST ─────────────────────────────────────────────────────────────── -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+    <div id="toastEl" class="toast" role="alert">
+        <div class="toast-header">
+            <i class="bi bi-check-circle-fill text-success me-2" id="toastIcon"></i>
+            <strong class="me-auto" id="toastTitle">Notification</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toastBody">—</div>
+    </div>
+</div>
+
+<th:block th:replace="~{doctor/fragments :: scripts}"></th:block>
+
+<script th:inline="javascript">
+/*<![CDATA[*/
+const APPOINTMENT_ID      = /*[[${appointment.id}]]*/ '';
+const IS_LOCKED           = /*[[${locked}]]*/ false;
+let isDirty = false;
+// ── Helper: collect the full form payload ───────────────────────────────────
+function collectPayload(finalize) {
+    return {
+        chiefComplaints:              val('chiefComplaints'),
+        historyOfPresentingIllness:   val('historyOfPresentingIllness'),
+        pastMedicalHistory:           val('pastMedicalHistory'),
+        pastSurgicalHistory:          val('pastSurgicalHistory'),
+        familySocialHistory:          val('familySocialHistory'),
+        drugFoodAllergies:            val('drugFoodAllergies'),
+        currentSymptoms:              val('currentSymptoms'),
+        comorbidities:                val('comorbidities'),
+        modeOfAmbulation:             val('modeOfAmbulation') || null,
+        hasPain:                      document.getElementById('hasPain')?.checked ?? false,
+        painScore:                    parseInt(val('painScore')) || null,
+        painLocation:                 val('painLocation') || null,
+        fallRisk:                     document.querySelector('input[name="fallRisk"]:checked')?.value === 'true',
+        fallScore:                    parseInt(val('fallScore')) || null,
+        infectiousDiseaseRisk:        document.querySelector('input[name="infectiousDiseaseRisk"]:checked')?.value === 'true',
+        physicalExamination:          val('physicalExamination'),
+        clinicalNotes:                val('clinicalNotes'),
+        provisionalDiagnosis:         val('provisionalDiagnosis'),
+        finalDiagnosis:               val('finalDiagnosis'),
+        treatmentPlan:                val('treatmentPlan'),
+        nextStep:                     val('nextStep'),
+        followUpDate:                 val('followUpDate') || null,
+        followUpInstructions:         val('followUpInstructions'),
+        forwardedToDoctorId:          val('forwardedToDoctorId') || null,
+        wardName:                     val('wardName') || null,
+        nurseId:                      val('nurseId') || null,
+        expectedAdmissionDays:        parseInt(val('expectedAdmissionDays')) || null,
+        surgeryOrder:                 collectSurgeryOrder(),
+        finalize:                     !!finalize
+    };
+}
+
+function val(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+}
+
+function toggleDocPain(cb) {
+    const d = document.getElementById('docPainDetails');
+    d.style.display = cb.checked ? 'flex' : 'none';
+}
+
+function toggleDocFallScore(show) {
+    document.getElementById('docFallScoreGroup').style.display = show ? 'block' : 'none';
+}
+
+function collectSurgeryOrder() {
+    const nextStep = val('nextStep');
+    if (nextStep !== 'SCHEDULE_SURGERY') return null;
+    const nurseIds = Array.from(
+        document.querySelectorAll('.surg-nurse-check:checked')
+    ).map(el => el.value).filter(Boolean);
+    const priceVal = val('surgPrice');
+    const durationVal = val('surgDuration');
+    const scheduledVal = val('surgScheduledDate');
+    return {
+        servicePriceItemId:       val('surgServicePriceItemId') || null,
+        procedureName:            val('surgProcedureName') || null,
+        surgeryType:              val('surgType') || 'GENERAL',
+        urgency:                  val('surgUrgency') || 'ELECTIVE',
+        anesthesiaType:           val('surgAnesthesia') || null,
+        scheduledDate:            scheduledVal ? scheduledVal + ':00' : null,
+        operatingTheater:         val('surgTheater') || null,
+        estimatedDurationMinutes: durationVal ? parseInt(durationVal) : null,
+        price:                    priceVal ? parseFloat(priceVal) : null,
+        nurseIds:                 nurseIds,
+        preopNotes:               val('surgPreopNotes') || null,
+        consentObtained:          document.getElementById('surgConsent')?.checked || false
+    };
+}
+
+// ── Submit ──────────────────────────────────────────────────────────────────
+async function submitConsultation(finalize) {
+    const payload = collectPayload(finalize);
+    const btn = finalize
+        ? document.getElementById('confirmFinalizeBtn')
+        : document.getElementById('saveDraftBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+
+    try {
+        const resp = await fetch(`/doctor/consultation/${APPOINTMENT_ID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showToast('success', finalize ? 'Consultation Finalized' : 'Draft Saved', data.message);
+            if (finalize) {
+                bootstrap.Modal.getInstance(document.getElementById('finalizeModal'))?.hide();
+                setTimeout(() => window.location.href = '/doctor/dashboard', 1500);
+            } else {
+                isDirty = false;
+            }
+        } else {
+            showToast('danger', 'Error', data.message || 'An error occurred.');
+        }
+    } catch (e) {
+        showToast('danger', 'Error', 'Network error. Please try again.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = finalize
+            ? '<i class="bi bi-check2-all me-1"></i>Yes, Finalize'
+            : '<i class="bi bi-floppy me-1"></i>Save Draft';
+    }
+}
+
+// ── Print Consultation ───────────────────────────────────────────────────────
+function printConsultation() {
+    const now = new Date();
+    const opts = { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+    const el = document.getElementById('printDate');
+    if (el) el.textContent = 'Date Printed: ' + now.toLocaleString(undefined, opts);
+    window.print();
+}
+
+// ── Initialise button states from server-rendered constants ─────────────────
+
+
+// ── Toast helper ─────────────────────────────────────────────────────────────
+function showToast(type, title, message) {
+    const toastEl    = document.getElementById('toastEl');
+    const toastIcon  = document.getElementById('toastIcon');
+    const toastTitle = document.getElementById('toastTitle');
+    const toastBody  = document.getElementById('toastBody');
+    if (!toastEl) return;
+    toastIcon.className  = type === 'success'
+        ? 'bi bi-check-circle-fill text-success me-2'
+        : 'bi bi-exclamation-triangle-fill text-danger me-2';
+    toastTitle.textContent = title;
+    toastBody.textContent  = message;
+    const toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 4000 });
+    toast.show();
+}
+
+// ── Tab fallback (in case Bootstrap JS pill handling is delayed) ──────────────
+(function () {
+    const pills = document.querySelectorAll('[data-bs-toggle="pill"]');
+    if (!pills.length) return;
+    pills.forEach(pill => {
+        pill.addEventListener('click', function (e) {
+            e.preventDefault();
+            const targetId = (this.getAttribute('data-bs-target') || this.getAttribute('href') || '').replace('#', '');
+            if (!targetId) return;
+            // Update active nav link
+            pills.forEach(p => p.classList.remove('active'));
+            this.classList.add('active');
+            // Update active tab pane
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('show', 'active'));
+            const target = document.getElementById(targetId);
+            if (target) target.classList.add('show', 'active');
+            // Remove the hash from the URL so #tabDiagnosis etc. don't appear
+            history.replaceState(null, '', window.location.pathname);
+        });
+    });
+})();
+
+// Mark form dirty on any input (delegated — one listener covers all fields)
+document.querySelector('.main-content')?.addEventListener('input',  () => { isDirty = true; });
+document.querySelector('.main-content')?.addEventListener('change', () => { isDirty = true; });
+
+// Auto-save draft when navigating away or closing the tab
+window.addEventListener('beforeunload', function () {
+    if (IS_LOCKED || !isDirty) return;
+    const payload = collectPayload(false);
+    if (typeof navigator.sendBeacon === 'function') {
+        navigator.sendBeacon(
+            `/doctor/consultation/${APPOINTMENT_ID}`,
+            new Blob([JSON.stringify(payload)], { type: 'application/json' })
+        );
+    } else {
+        fetch(`/doctor/consultation/${APPOINTMENT_ID}`, {
+            method:    'POST',
+            headers:   { 'Content-Type': 'application/json' },
+            body:      JSON.stringify(payload),
+            keepalive: true
+        });
+    }
+});
+
+document.getElementById('saveDraftBtn')?.addEventListener('click', () => submitConsultation(false));
+
+document.getElementById('finalizeBtn')?.addEventListener('click', () => {
+    // Client-side validation before opening the confirm modal
+    const missing = [];
+    if (!val('chiefComplaints'))      missing.push('Chief Complaints (History tab)');
+    if (!val('physicalExamination')) missing.push('Physical Examination (History tab)');
+    if (!val('provisionalDiagnosis')) missing.push('Provisional Diagnosis (Diagnosis tab)');
+    if (!val('treatmentPlan'))        missing.push('Treatment Plan (Diagnosis tab)');
+    if (!val('nextStep'))             missing.push('Disposition / Next Step (Disposition tab)');
+
+    // Admitted — require Expected Stay and Ward Nurse
+    const nextStepVal = document.getElementById('nextStep')?.value;
+    if (nextStepVal === 'ADMITTED') {
+        if (!val('expectedAdmissionDays')) missing.push('Expected Stay (days) — Disposition tab');
+        const nurseId = document.getElementById('nurseId')?.value;
+        if (!nurseId) missing.push('Assign Ward Nurse — Disposition tab');
+    }
+
+    // Surgery — require Scheduled Date, Theater, Duration, and at least one Nurse
+    if (nextStepVal === 'SCHEDULE_SURGERY') {
+        if (!val('surgScheduledDate'))    missing.push('Scheduled Date & Time — Disposition tab');
+        if (!val('surgTheater'))          missing.push('Operating Theater — Disposition tab');
+        if (!val('surgDuration'))         missing.push('Est. Duration (min) — Disposition tab');
+        const checkedNurses = document.querySelectorAll('.surg-nurse-check:checked');
+        if (checkedNurses.length === 0) missing.push('Assign Nursing Team — Disposition tab');
+    }
+
+    if (missing.length > 0) {
+        showToast('danger', 'Cannot Finalize',
+            'Please fill in: ' + missing.join(' | ') + '.');
+        return;
+    }
+    new bootstrap.Modal(document.getElementById('finalizeModal')).show();
+});
+
+document.getElementById('confirmFinalizeBtn')?.addEventListener('click', () => submitConsultation(true));
+
+
+// ── Row management ───────────────────────────────────────────────────────────
+function removeRow(btn) {
+    const row = btn.closest('.rx-row, .lab-row');
+    if (row) row.remove();
+}
+
+
+
+// ── Disposition forward panel toggle ─────────────────────────────────────────
+function handleNextStepChange() {
+    const v = document.getElementById('nextStep').value;
+    const forwardPanel = document.getElementById('forwardPanel');
+    const wardPanel    = document.getElementById('wardPanel');
+    const surgeryPanel = document.getElementById('surgeryPanel');
+    forwardPanel.style.display = (v === 'REFERRED_DOCTOR' || v === 'REFERRED_SPECIALIST') ? '' : 'none';
+    wardPanel.style.display    = (v === 'ADMITTED') ? '' : 'none';
+    surgeryPanel.style.display = (v === 'SCHEDULE_SURGERY') ? '' : 'none';
+    if (v === 'SCHEDULE_SURGERY') {
+        loadSurgNurses();
+    }
+}
+
+// ── Surgery catalog live-search ───────────────────────────────────────────────
+let surgDebounce;
+function surgSearchProcedure(query) {
+    clearTimeout(surgDebounce);
+    const dropdown = document.getElementById('surgCatalogDropdown');
+    if (!query || query.length < 2) { dropdown.style.display = 'none'; return; }
+    surgDebounce = setTimeout(async () => {
+        try {
+            const items = await fetchJson('/doctor/api/surgery-catalog?q=' + encodeURIComponent(query));
+            dropdown.innerHTML = items.length === 0
+                ? '<div class="list-group-item text-muted">No results</div>'
+                : items.map(i => `<button type="button" class="list-group-item list-group-item-action"
+                    onclick="selectSurgProcedure('${i.id}','${escHtml(i.name)}',${i.price || 0})">
+                    <strong>${escHtml(i.name)}</strong>
+                    <span class="badge bg-secondary ms-2">${escHtml(i.category || '')}</span>
+                    <span class="float-end text-muted">TZS ${i.price || '—'}</span></button>`).join('');
+            dropdown.style.display = '';
+        } catch (e) { dropdown.style.display = 'none'; }
+    }, 280);
+}
+
+function selectSurgProcedure(id, name, price) {
+    document.getElementById('surgProcedureName').value = name;
+    document.getElementById('surgServicePriceItemId').value = id;
+    if (price) document.getElementById('surgPrice').value = price;
+    document.getElementById('surgCatalogDropdown').style.display = 'none';
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Load available nurses for surgery assignment ───────────────────────────────
+let surgNursesLoaded = false;
+// Auto-load nurses on page refresh if surgery is already selected
+if (document.getElementById('nextStep')?.value === 'SCHEDULE_SURGERY') {
+    loadSurgNurses();
+}
+async function loadSurgNurses() {
+    if (surgNursesLoaded) return;
+    const container = document.getElementById('surgNurseContainer');
+    try {
+        const nurses = await fetchJson('/doctor/api/available-nurses');
+        if (!nurses || nurses.length === 0) {
+            container.innerHTML = '<div class="col-12 text-muted small">No nurses available.</div>';
+            return;
+        }
+        container.innerHTML = nurses.map(n =>
+            `<div class="col-6 col-md-4">
+              <div class="form-check">
+                <input class="form-check-input surg-nurse-check" type="checkbox" value="${n.id}" id="sn_${n.id}">
+                <label class="form-check-label" for="sn_${n.id}">${escHtml(n.name)}<small class="text-muted ms-1">[${n.role}]</small></label>
+              </div>
+            </div>`).join('');
+        surgNursesLoaded = true;
+    } catch (e) {
+        container.innerHTML = '<div class="col-12 text-warning small">Could not load nurses.</div>';
+    }
+}
+
+
+// ── Utilities ────────────────────────────────────────────────────────────────
+async function fetchJson(url, opts) {
+    const resp = await fetch(url, opts);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
+}
+
+// ── Ward Lab autocomplete ────────────────────────────────────────────────────
+(function() {
+    const inp  = document.getElementById('wardLabSearch');
+    const drop = document.getElementById('wardLabDropdown');
+    const hn   = document.getElementById('wardLabTestName');
+    const hi   = document.getElementById('wardLabItemId');
+    if (!inp) return;
+    let debounce;
+    inp.addEventListener('input', () => {
+        clearTimeout(debounce);
+        const q = inp.value.trim();
+        if (q.length < 2) { drop.style.display = 'none'; return; }
+        debounce = setTimeout(async () => {
+            try {
+                const items = await fetchJson('/doctor/api/catalogue/lab/search?q=' + encodeURIComponent(q));
+                drop.innerHTML = items.length === 0
+                    ? '<div class="list-group-item text-muted small">No results</div>'
+                    : items.map(item =>
+                        `<button type="button" class="list-group-item list-group-item-action py-1 px-2 small"
+                                 data-id="${item.id}" data-name="${escHtml(item.name)}">
+                            <strong>${escHtml(item.name)}</strong>
+                            <span class="badge bg-secondary ms-1">${escHtml(item.classification||'')}</span>
+                            <span class="float-end text-muted">TZS ${item.price||'—'}</span>
+                        </button>`).join('');
+                drop.style.display = 'block';
+                drop.querySelectorAll('button[data-id]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        inp.value = btn.dataset.name;
+                        hn.value  = btn.dataset.name;
+                        hi.value  = btn.dataset.id;
+                        drop.style.display = 'none';
+                    });
+                });
+            } catch(e) { drop.style.display = 'none'; }
+        }, 300);
+    });
+    document.addEventListener('click', e => { if (!inp.contains(e.target)) drop.style.display='none'; });
+    inp.addEventListener('keydown', e => { if (e.key==='Escape') drop.style.display='none'; });
+})();
+
+// ── Ward lab form validation ──────────────────────────────────────────────────
+function validateWardLab() {
+    const hn = document.getElementById('wardLabTestName');
+    const inp = document.getElementById('wardLabSearch');
+    if (!hn || !hn.value.trim()) {
+        // if no hidden value, use the input text directly
+        if (inp && inp.value.trim()) {
+            hn.value = inp.value.trim();
+            return true;
+        }
+        alert('Please select a lab test first.');
+        return false;
+    }
+    return true;
+}
+
+// ── Initialise pain/fall panels on load ──────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    const hasPainCb = document.getElementById('hasPain');
+    if (hasPainCb && hasPainCb.checked) {
+        document.getElementById('docPainDetails').style.display = 'flex';
+    }
+    const fallYes = document.getElementById('fallRiskYes');
+    if (fallYes && fallYes.checked) {
+        document.getElementById('docFallScoreGroup').style.display = 'block';
+    }
+});
+
+</script>
+</body>
+</html>

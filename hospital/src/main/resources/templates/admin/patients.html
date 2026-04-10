@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{admin/fragments :: head('Patients')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{admin/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{admin/fragments :: topbar('Patients')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{admin/fragments :: alerts}"></th:block>
+
+            <!-- Page header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h5 class="fw-semibold mb-1">
+                        <i class="bi bi-person-lines-fill me-2 text-primary"></i>All Patients
+                    </h5>
+                    <span class="text-muted small">Patients registered at Gilgal Polyclinic and their total billing</span>
+                </div>
+            </div>
+
+            <!-- Summary stat cards -->
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card stat-card--blue">
+                        <div class="stat-card__icon"><i class="bi bi-people-fill"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value" th:text="${totalPatients}">0</div>
+                            <div class="stat-card__label">Total Patients</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card stat-card--green">
+                        <div class="stat-card__icon"><i class="bi bi-cash-stack"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value"
+                                 th:text="'TZSh ' + ${#numbers.formatDecimal(grandTotal, 1, 'COMMA', 0, 'POINT')}">TZSh 0</div>
+                            <div class="stat-card__label">Total Billed (All Time)</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card stat-card--teal">
+                        <div class="stat-card__icon"><i class="bi bi-receipt-cutoff"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value"
+                                 th:text="${totalInvoices}">0</div>
+                            <div class="stat-card__label">Total Invoices</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card stat-card--orange">
+                        <div class="stat-card__icon"><i class="bi bi-person-check-fill"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value"
+                                 th:text="${patientsWithBill}">0</div>
+                            <div class="stat-card__label">Patients with Invoices</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search + Table card -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom pt-3 pb-2 px-3">
+                    <form th:action="@{/admin/patients}" method="get" class="d-flex gap-2 align-items-center mb-0">
+                        <div class="input-group" style="max-width: 360px;">
+                            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" name="search" class="form-control border-start-0"
+                                   placeholder="Search by name or ID…"
+                                   th:value="${search}"/>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Search</button>
+                        <a th:if="${search != null and !#strings.isEmpty(search)}"
+                           th:href="@{/admin/patients}" class="btn btn-outline-secondary">Clear</a>
+                    </form>
+                </div>
+
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="patientTable">
+                            <thead class="table-light">
+                            <tr>
+                                <th class="ps-3" style="width:3rem;">#</th>
+                                <th>Patient Name</th>
+                                <th>National ID</th>
+                                <th>Gender</th>
+                                <th>Phone</th>
+                                <th>Registration Date</th>
+                                <th class="text-center">Invoices</th>
+                                <th class="text-end pe-3">Total Billed</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="row, stat : ${patientRows}">
+                                <td class="ps-3 text-muted small" th:text="${stat.count}">1</td>
+                                <td>
+                                    <div class="fw-semibold"
+                                         th:text="${row.patient.firstName + ' ' + row.patient.lastName}">—</div>
+                                    <span th:unless="${row.patient.active}" class="badge bg-secondary small">Discharged</span>
+                                    <small class="text-muted"
+                                           th:if="${row.patient.email != null}"
+                                           th:text="${row.patient.email}"></small>
+                                </td>
+                                <td>
+                                    <span th:text="${row.patient.nationalId != null ? row.patient.nationalId : '—'}"
+                                          class="font-monospace small">—</span>
+                                </td>
+                                <td>
+                                    <span th:text="${row.patient.gender != null ? row.patient.gender.name() : '—'}"
+                                          class="small">—</span>
+                                </td>
+                                <td th:text="${row.patient.phone != null ? row.patient.phone : '—'}">—</td>
+                                <td th:text="${row.patient.registrationDate != null
+                                              ? #temporals.format(row.patient.registrationDate, 'dd MMM yyyy')
+                                              : '—'}">—</td>
+                                <td class="text-center">
+                                    <span th:if="${row.invoiceCount > 0}"
+                                          class="badge bg-primary-subtle text-primary border border-primary-subtle"
+                                          th:text="${row.invoiceCount}">0</span>
+                                    <span th:if="${row.invoiceCount == 0}"
+                                          class="text-muted small">—</span>
+                                </td>
+                                <td class="text-end pe-3 fw-semibold">
+                                    <span th:if="${row.totalBilled.compareTo(T(java.math.BigDecimal).ZERO) > 0}"
+                                          class="text-success"
+                                          th:text="'TZSh ' + ${#numbers.formatDecimal(row.totalBilled, 1, 'COMMA', 0, 'POINT')}">TZSh 0</span>
+                                    <span th:if="${row.totalBilled.compareTo(T(java.math.BigDecimal).ZERO) == 0}"
+                                          class="text-muted small">No charges</span>
+                                </td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(patientRows)}">
+                                <td colspan="8" class="text-center text-muted py-5">
+                                    <i class="bi bi-people fs-3 d-block mb-2 opacity-50"></i>
+                                    No patients found<span th:if="${search != null and !#strings.isEmpty(search)}">
+                                        for "<strong th:text="${search}"></strong>"</span>.
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Footer: count + pagination -->
+                <div class="card-footer bg-white py-2 px-3" th:if="${!#lists.isEmpty(patientRows)}">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <small class="text-muted">
+                            Showing <strong th:text="${#lists.size(patientRows)}">0</strong> of
+                            <strong th:text="${totalPatients}">0</strong> patient<span th:if="${totalPatients != 1}">s</span>
+                            <span th:if="${search != null and !#strings.isEmpty(search)}"> matching "<strong th:text="${search}"></strong>"</span>
+                        </small>
+                        <nav th:if="${totalPages > 1}">
+                            <ul class="pagination pagination-sm mb-0">
+                                <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/patients(page=${currentPage - 1}, search=${search})}">&#8249;</a>
+                                </li>
+                                <th:block th:with="start=${T(java.lang.Math).max(0, currentPage - 2)}, end=${T(java.lang.Math).min(totalPages - 1, start + 4)}">
+                                    <li class="page-item" th:each="i : ${#numbers.sequence(start, end)}"
+                                        th:classappend="${i == currentPage} ? 'active'">
+                                        <a class="page-link" th:href="@{/admin/patients(page=${i}, search=${search})}" th:text="${i + 1}">1</a>
+                                    </li>
+                                </th:block>
+                                <li class="page-item" th:classappend="${currentPage >= totalPages - 1} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/patients(page=${currentPage + 1}, search=${search})}">&#8250;</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{admin/fragments :: scripts}"></th:block>
+</body>
+</html>

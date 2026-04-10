@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{ward-nurse/fragments :: head('Surgery Queue')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{ward-nurse/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{ward-nurse/fragments :: topbar('Surgery Queue')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{ward-nurse/fragments :: alerts}"></th:block>
+
+            <!-- Page header -->
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-scissors text-primary me-2"></i>Surgery Queue
+                    </h5>
+                    <small class="text-muted">Scheduled and in-progress surgical procedures</small>
+                </div>
+                <span class="badge bg-primary fs-6"
+                      th:text="${#lists.size(surgeries)} + ' procedure(s)'">0</span>
+            </div>
+
+            <!-- Empty state -->
+            <div th:if="${#lists.isEmpty(surgeries)}" class="text-center py-5">
+                <i class="bi bi-scissors display-1 text-muted"></i>
+                <p class="mt-3 text-muted">No active surgeries at the moment.</p>
+            </div>
+
+            <!-- Surgery cards -->
+            <div th:if="${!#lists.isEmpty(surgeries)}" class="row g-3">
+                <div class="col-md-6 col-xl-4" th:each="s : ${surgeries}">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-white border-bottom py-2 d-flex align-items-center justify-content-between">
+                            <span th:class="${s.urgency == 'EMERGENCY' ? 'badge bg-danger' :
+                                           (s.urgency == 'URGENT' ? 'badge bg-warning text-dark' : 'badge bg-success')}"
+                                  th:text="${s.urgency}">—</span>
+                            <span th:class="${s.status == 'IN_PROGRESS' ? 'badge bg-warning text-dark' :
+                                           (s.status == 'COMPLETED' ? 'badge bg-success' :
+                                           (s.status == 'DISCHARGED' ? 'badge bg-info' : 'badge bg-primary'))}"
+                                  th:text="${s.status}">—</span>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="fw-bold mb-1" th:text="${s.procedureName}">—</h6>
+                            <div class="text-muted small mb-2" th:text="${s.patientName}">—</div>
+                            <div class="row g-1 text-sm">
+                                <div class="col-6">
+                                    <span class="text-muted">Theater:</span>
+                                    <span th:text="${s.operatingTheater ?: '—'}">—</span>
+                                </div>
+                                <div class="col-6">
+                                    <span class="text-muted">Time:</span>
+                                    <span th:if="${s.scheduledDate != null}"
+                                          th:text="${#temporals.format(s.scheduledDate,'HH:mm dd MMM')}">—</span>
+                                    <span th:if="${s.scheduledDate == null}" class="text-muted">TBD</span>
+                                </div>
+                                <div class="col-12 mt-1">
+                                    <span class="text-muted">Consent:</span>
+                                    <span th:if="${s.consentObtained}" class="text-success">
+                                        <i class="bi bi-check-circle-fill"></i> Yes
+                                    </span>
+                                    <span th:if="${!s.consentObtained}" class="text-danger">
+                                        <i class="bi bi-x-circle-fill"></i> No
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-white border-top py-2">
+                            <a th:href="@{/ward-nurse/surgeries/{id}(id=${s.id})}"
+                               class="btn btn-sm btn-primary w-100">
+                                <i class="bi bi-eye me-1"></i>View &amp; Record Care
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+</body>
+</html>

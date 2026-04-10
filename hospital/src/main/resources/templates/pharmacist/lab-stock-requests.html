@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{pharmacist/fragments :: head('Lab Stock Requests')}"></th:block>
+</head>
+<body>
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{pharmacist/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{pharmacist/fragments :: topbar('Lab Stock Requests')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{pharmacist/fragments :: alerts}"></th:block>
+
+            <!-- Header -->
+            <div class="mb-4">
+                <h5 class="fw-semibold mb-0">
+                    <i class="bi bi-arrow-left-right me-2 text-success"></i>Lab Stock Requests
+                </h5>
+                <small class="text-muted">Stock transfer requests raised by the lab technician team.</small>
+            </div>
+
+            <!-- Pending Requests -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white fw-semibold d-flex align-items-center gap-2">
+                    <i class="bi bi-hourglass-split text-warning"></i>Pending Requests
+                    <span class="badge bg-warning text-dark ms-1" th:text="${#lists.size(pendingRequests)}">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Item</th>
+                                <th class="text-center">Available</th>
+                                <th class="text-center">Qty Requested</th>
+                                <th>Requested By</th>
+                                <th>Notes</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="req : ${pendingRequests}">
+                                <td class="ps-3 fw-medium" th:text="${req.stockItem.priceItem.productName}">—</td>
+                                <td class="text-center">
+                                    <span th:text="${req.stockItem.currentQuantity}"
+                                          th:class="${req.stockItem.currentQuantity <= 0} ? 'text-danger fw-bold' : 'text-success fw-semibold'">—</span>
+                                </td>
+                                <td class="text-center fw-semibold" th:text="${req.requestedQuantity}">—</td>
+                                <td th:text="${req.requestedBy != null ? req.requestedBy.firstName + ' ' + req.requestedBy.lastName : '—'}">—</td>
+                                <td class="text-muted small" th:text="${req.requestNotes != null ? req.requestNotes : '—'}">—</td>
+                                <td class="text-muted small"
+                                    th:text="${req.createdAt != null ? #temporals.format(req.createdAt, 'dd MMM yyyy HH:mm') : '—'}">—</td>
+                                <td class="d-flex gap-1 align-items-center flex-wrap">
+                                    <button class="btn btn-sm btn-outline-success"
+                                            data-bs-toggle="modal" data-bs-target="#releaseModal"
+                                            th:attr="data-req-id=${req.id}, data-item-name=${req.stockItem.priceItem.productName}, data-req-qty=${req.requestedQuantity}, data-avail-qty=${req.stockItem.currentQuantity}"
+                                            onclick="prepareRelease(this)">
+                                        <i class="bi bi-box-arrow-right me-1"></i>Release
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            data-bs-toggle="modal" data-bs-target="#rejectModal"
+                                            th:attr="data-req-id=${req.id}, data-item-name=${req.stockItem.priceItem.productName}"
+                                            onclick="prepareReject(this)">
+                                        <i class="bi bi-x-circle me-1"></i>Reject
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(pendingRequests)}">
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="bi bi-check-circle fs-3 d-block mb-2 opacity-50 text-success"></i>No pending requests.
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Request History -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-clock-history me-2 text-secondary"></i>Request History
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Item</th>
+                                <th class="text-center">Qty Requested</th>
+                                <th class="text-center">Qty Released</th>
+                                <th>Status</th>
+                                <th>Requested By</th>
+                                <th>Handled By</th>
+                                <th>Response</th>
+                                <th>Handled</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="req : ${handledRequests}">
+                                <td class="ps-3 fw-medium" th:text="${req.stockItem.priceItem.productName}">—</td>
+                                <td class="text-center" th:text="${req.requestedQuantity}">—</td>
+                                <td class="text-center" th:text="${req.releasedQuantity != null ? req.releasedQuantity : '—'}">—</td>
+                                <td>
+                                    <span th:class="${req.status.name() == 'RELEASED'} ? 'badge bg-success' : 'badge bg-danger'"
+                                          th:text="${req.status}">—</span>
+                                </td>
+                                <td th:text="${req.requestedBy != null ? req.requestedBy.firstName + ' ' + req.requestedBy.lastName : '—'}">—</td>
+                                <td th:text="${req.handledBy != null ? req.handledBy.firstName + ' ' + req.handledBy.lastName : '—'}">—</td>
+                                <td class="text-muted small" th:text="${req.responseNotes != null ? req.responseNotes : '—'}">—</td>
+                                <td class="text-muted small"
+                                    th:text="${req.handledAt != null ? #temporals.format(req.handledAt, 'dd MMM yyyy HH:mm') : '—'}">—</td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(handledRequests)}">
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox fs-3 d-block mb-2 opacity-50"></i>No handled requests yet.
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<!-- Release Modal -->
+<div class="modal fade" id="releaseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-box-arrow-right me-2"></i>Release Stock</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="releaseForm" method="post">
+                <div class="modal-body">
+                    <p class="text-muted mb-3">
+                        Releasing stock for: <strong id="releaseItemName"></strong>
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Quantity to Release <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" name="releasedQuantity" id="releaseQtyInput"
+                               min="1" required placeholder="Enter quantity…">
+                        <div class="form-text text-muted">
+                            Requested: <strong id="releaseReqQty"></strong> &mdash; Available: <strong id="releaseAvailQty"></strong>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" name="responseNotes" rows="2"
+                                  placeholder="Optional notes (e.g. partial release reason)…"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle me-2"></i>Confirm Release
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-x-circle me-2"></i>Reject Request</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="rejectForm" method="post">
+                <div class="modal-body">
+                    <p class="text-muted mb-3">
+                        Rejecting request for: <strong id="rejectItemName"></strong>
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label">Reason <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="responseNotes" rows="3" required
+                                  placeholder="Reason for rejection…"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-circle me-2"></i>Confirm Rejection
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{pharmacist/fragments :: scripts}"></th:block>
+<script th:inline="javascript">
+    const baseUrl = /*[[@{/pharmacist/lab-stock-requests/}]]*/ '/pharmacist/lab-stock-requests/';
+
+    function prepareRelease(btn) {
+        const id       = btn.getAttribute('data-req-id');
+        const name     = btn.getAttribute('data-item-name');
+        const reqQty   = btn.getAttribute('data-req-qty');
+        const availQty = btn.getAttribute('data-avail-qty');
+        document.getElementById('releaseItemName').textContent  = name;
+        document.getElementById('releaseReqQty').textContent    = reqQty;
+        document.getElementById('releaseAvailQty').textContent  = availQty;
+        document.getElementById('releaseQtyInput').max          = availQty;
+        document.getElementById('releaseQtyInput').value        = Math.min(parseInt(reqQty), parseInt(availQty));
+        document.getElementById('releaseForm').action           = baseUrl + id + '/release';
+    }
+
+    function prepareReject(btn) {
+        const id   = btn.getAttribute('data-req-id');
+        const name = btn.getAttribute('data-item-name');
+        document.getElementById('rejectItemName').textContent = name;
+        document.getElementById('rejectForm').action          = baseUrl + id + '/reject';
+    }
+</script>
+</body>
+</html>

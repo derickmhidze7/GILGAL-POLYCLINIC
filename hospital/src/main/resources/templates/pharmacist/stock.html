@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{pharmacist/fragments :: head('Stock Management')}"></th:block>
+    <style>
+        .status-ok       { background: #d1e7dd; color: #0a3622; border: 1px solid #a3cfbb; }
+        .status-warning  { background: #fff3cd; color: #664d03; border: 1px solid #ffe69c; }
+        .status-critical { background: #ffe5d0; color: #6e2506; border: 1px solid #ffbf99; }
+        .status-danger   { background: #f8d7da; color: #58151c; border: 1px solid #f1aeb5; }
+        .catalogue-result-item { cursor: pointer; padding: .45rem .75rem; border-radius: .3rem; }
+        .catalogue-result-item:hover { background: #f0f4ff; }
+        .selected-item-card { background: #f0fdf4; border: 1px solid #86efac; border-radius: .5rem; padding: .75rem 1rem; }
+        .progress-slim { height: 6px; }
+    </style>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{pharmacist/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{pharmacist/fragments :: topbar('Stock Management')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{pharmacist/fragments :: alerts}"></th:block>
+
+            <!-- ============================================================
+                 Header
+            ============================================================= -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="fw-semibold mb-0">
+                    <i class="bi bi-box-seam me-2 text-success"></i>Stock Management
+                </h5>
+                <button class="btn btn-success"
+                        data-bs-toggle="modal" data-bs-target="#restockModal">
+                    <i class="bi bi-plus-circle me-2"></i>Restock Item
+                </button>
+            </div>
+
+            <!-- ============================================================
+                 Alert banner for low stock
+            ============================================================= -->
+            <div th:if="${alertCounts['DANGER'] + alertCounts['CRITICAL'] > 0}"
+                 class="alert alert-danger d-flex align-items-start gap-2 mb-4" role="alert">
+                <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+                <div>
+                    <strong>Low stock alert!</strong>
+                    <span th:if="${alertCounts['DANGER'] > 0}">
+                        <span th:text="${alertCounts['DANGER']}"></span> item(s) critically low (&le;10%).
+                    </span>
+                    <span th:if="${alertCounts['CRITICAL'] > 0}">
+                        <span th:text="${alertCounts['CRITICAL']}"></span> item(s) at critical level (&le;25%).
+                    </span>
+                </div>
+            </div>
+
+            <!-- Near-expiry alert banner -->
+            <div th:if="${!#lists.isEmpty(expiringSoon)}"
+                 class="alert alert-warning d-flex align-items-start gap-2 mb-4" role="alert">
+                <i class="bi bi-calendar-x-fill flex-shrink-0 mt-1"></i>
+                <div>
+                    <strong>Near-expiry alert!</strong>
+                    <span th:text="${#lists.size(expiringSoon)}"></span> batch(es) across
+                    <span th:text="${expiringSoonItemIds.size()}"></span> item(s) will expire within 3 months.
+                    Review the highlighted rows below and restock or use them promptly.
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 Stat cards
+            ============================================================= -->
+            <div class="row g-3 mb-4">
+                <!-- Total items -->
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body text-center py-3">
+                            <i class="bi bi-boxes fs-3 text-primary mb-2 d-block"></i>
+                            <div class="fs-4 fw-bold" th:text="${stockList.size()}">0</div>
+                            <div class="text-muted small">Total Items</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- OK -->
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body text-center py-3">
+                            <i class="bi bi-check-circle-fill fs-3 text-success mb-2 d-block"></i>
+                            <div class="fs-4 fw-bold text-success" th:text="${alertCounts['OK']}">0</div>
+                            <div class="text-muted small">OK</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Warning -->
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body text-center py-3">
+                            <i class="bi bi-exclamation-circle-fill fs-3 text-warning mb-2 d-block"></i>
+                            <div class="fs-4 fw-bold text-warning"
+                                 th:text="${alertCounts['WARNING'] + alertCounts['CRITICAL'] + alertCounts['DANGER']}">0</div>
+                            <div class="text-muted small">Needs Attention</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Danger -->
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body text-center py-3">
+                            <i class="bi bi-exclamation-triangle-fill fs-3 text-danger mb-2 d-block"></i>
+                            <div class="fs-4 fw-bold text-danger" th:text="${alertCounts['DANGER']}">0</div>
+                            <div class="text-muted small">Critically Low</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Near expiry -->
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm h-100"
+                         th:classappend="${!#lists.isEmpty(expiringSoon)} ? 'border-warning border-2'">
+                        <div class="card-body text-center py-3">
+                            <i class="bi bi-calendar-x-fill fs-3 text-warning mb-2 d-block"></i>
+                            <div class="fs-4 fw-bold text-warning" th:text="${expiringSoonItemIds.size()}">0</div>
+                            <div class="text-muted small">Expiring &le; 3 Months</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 Stock table
+            ============================================================= -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom-0 pt-3 pb-0 px-3">
+                    <div class="input-group mb-3" style="max-width:340px;">
+                        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="stockSearch" class="form-control border-start-0"
+                               placeholder="Search item name…" oninput="filterStock()">
+                        <button class="btn btn-outline-secondary" type="button"
+                                onclick="document.getElementById('stockSearch').value='';filterStock();" title="Clear">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="stockTable">
+                            <thead class="table-light">
+                            <tr>
+                                <th class="ps-3" style="width:32px;"></th>
+                                <th>Item Name</th>
+                                <th>Type</th>
+                                <th>Classification</th>
+                                <th>Current Qty</th>
+                                <th>Last Batch</th>
+                                <th>Stock Level</th>
+                                <th>Status</th>
+                                <th>Last Restocked</th>
+                                <th>Added By</th>
+                            </tr>
+                            </thead>
+                            <tbody id="stockRows">
+
+                            <th:block th:each="item : ${stockList}">
+                            <tr th:with="status=${statusMap[item.priceItem.id]}"
+                                th:attr="data-name=${item.priceItem.productName.toLowerCase()}"
+                                th:id="'row-' + ${item.id}">
+
+                                <!-- Expand/collapse toggle -->
+                                <td class="ps-3">
+                                    <button type="button"
+                                            class="btn btn-sm btn-link text-muted p-0"
+                                            onclick="toggleBatches(this)"
+                                            th:attr="data-target='batches-' + ${item.id}"
+                                            title="View batches">
+                                        <i class="bi bi-chevron-right"></i>
+                                    </button>
+                                </td>
+                                <td>
+                                    <span th:text="${item.priceItem.productName}">—</span>
+                                    <span th:if="${expiringSoonItemIds.contains(item.id)}"
+                                          class="badge bg-warning text-dark ms-1 small"
+                                          title="One or more batches expire within 3 months">
+                                        <i class="bi bi-calendar-x me-1"></i>Exp. Soon
+                                    </span>
+                                </td>
+
+                                <!-- Type badge -->
+                                <td>
+                                    <span th:classappend="${#strings.equalsIgnoreCase(item.priceItem.type,'pharmacy')}
+                                                          ? 'badge bg-success-subtle text-success border border-success-subtle'
+                                                          : 'badge bg-info-subtle text-info-emphasis border border-info-subtle'"
+                                          th:text="${item.priceItem.type}">—</span>
+                                </td>
+
+                                <!-- Classification -->
+                                <td class="text-muted"
+                                    th:text="${item.priceItem.classification != null ? item.priceItem.classification : '—'}">—</td>
+
+                                <!-- Current Qty -->
+                                <td>
+                                    <span th:classappend="${status == 'DANGER'}   ? 'fw-bold text-danger' :
+                                                          (${status == 'CRITICAL'} ? 'fw-bold text-danger' :
+                                                          (${status == 'WARNING'}  ? 'fw-semibold text-warning' : ''))"
+                                          th:text="${item.currentQuantity}">0</span>
+                                </td>
+
+                                <!-- Last batch -->
+                                <td class="text-muted" th:text="${item.lastBatchQuantity}">0</td>
+
+                                <!-- Progress bar -->
+                                <td style="min-width:110px;">
+                                    <div class="progress progress-slim mt-1" title="Stock level vs last batch">
+                                        <div th:with="pct=${item.lastBatchQuantity > 0
+                                                            ? T(java.lang.Math).min(100, item.currentQuantity * 100 / item.lastBatchQuantity)
+                                                            : 100}"
+                                             class="progress-bar"
+                                             th:classappend="${status == 'DANGER'}   ? 'bg-danger'   :
+                                                              (${status == 'CRITICAL'} ? 'bg-warning' :
+                                                              (${status == 'WARNING'}  ? 'bg-info'    : 'bg-success'))"
+                                             role="progressbar"
+                                             th:style="'width:' + ${pct} + '%'"
+                                             th:attr="aria-valuenow=${pct}"
+                                             aria-valuemin="0" aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                    <small th:with="pct=${item.lastBatchQuantity > 0
+                                                         ? T(java.lang.Math).min(100, item.currentQuantity * 100 / item.lastBatchQuantity)
+                                                         : 100}"
+                                           class="text-muted" th:text="${pct + '%'}">—</small>
+                                </td>
+
+                                <!-- Status badge -->
+                                <td>
+                                    <span th:classappend="${status == 'DANGER'}   ? 'badge status-danger'   :
+                                                          (${status == 'CRITICAL'} ? 'badge status-critical' :
+                                                          (${status == 'WARNING'}  ? 'badge status-warning'  : 'badge status-ok'))"
+                                          th:text="${status}">—</span>
+                                </td>
+
+                                <!-- Last restocked -->
+                                <td th:text="${item.lastRestockedAt != null
+                                               ? #temporals.format(item.lastRestockedAt,'dd MMM yyyy HH:mm')
+                                               : '—'}">—</td>
+
+                                <!-- Added by -->
+                                <td th:text="${item.addedBy != null ? item.addedBy.firstName + ' ' + item.addedBy.lastName : '—'}">—</td>
+                            </tr>
+
+                            <!-- Batch detail sub-rows (hidden by default) -->
+                            <tr th:id="'batches-' + ${item.id}" style="display:none;"
+                                th:attr="data-name=${item.priceItem.productName.toLowerCase()}">
+                                <td colspan="10" class="p-0 bg-light">
+                                    <div class="px-4 py-2">
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <strong class="small text-muted"><i class="bi bi-layers me-1"></i>Inventory Batches for <span th:text="${item.priceItem.productName}"></span></strong>
+                                            <span class="badge bg-secondary small" th:text="${#lists.size(item.batches)} + ' batch(es)'"></span>
+                                        </div>
+                                        <div th:if="${#lists.isEmpty(item.batches)}" class="text-muted small py-2">
+                                            No batches recorded yet.
+                                        </div>
+                                        <table th:unless="${#lists.isEmpty(item.batches)}" class="table table-sm table-bordered mb-0 bg-white">
+                                            <thead class="table-secondary">
+                                            <tr>
+                                                <th class="small">Batch Number</th>
+                                                <th class="small">Expiry Date</th>
+                                                <th class="small">Received</th>
+                                                <th class="small">Remaining</th>
+                                                <th class="small">Supplier</th>
+                                                <th class="small">Status</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            <tr th:each="b : ${item.batches}">
+                                                <td class="small fw-semibold" th:text="${b.batchNumber}">—</td>
+                                                <td class="small">
+                                                    <span th:with="today=${T(java.time.LocalDate).now()}"
+                                                          th:classappend="${b.expiryDate.isBefore(today)} ? 'text-danger fw-semibold' :
+                                                                          (${b.expiryDate.isBefore(today.plusDays(90))} ? 'text-warning fw-semibold' : '')"
+                                                          th:text="${#temporals.format(b.expiryDate,'dd MMM yyyy')}">—</span>
+                                                    <span th:if="${b.expiryDate.isBefore(T(java.time.LocalDate).now())}"
+                                                          class="badge bg-danger ms-1 small">EXPIRED</span>
+                                                    <span th:if="${!b.expiryDate.isBefore(T(java.time.LocalDate).now()) && b.expiryDate.isBefore(T(java.time.LocalDate).now().plusDays(30))}"
+                                                          class="badge bg-danger ms-1 small">Exp. &lt;30d</span>
+                                                    <span th:if="${!b.expiryDate.isBefore(T(java.time.LocalDate).now().plusDays(30)) && b.expiryDate.isBefore(T(java.time.LocalDate).now().plusDays(90))}"
+                                                          class="badge bg-warning text-dark ms-1 small">Exp. &lt;3mo</span>
+                                                </td>
+                                                <td class="small" th:text="${b.quantityReceived}">—</td>
+                                                <td class="small">
+                                                    <span th:classappend="${b.remainingQuantity == 0} ? 'text-muted' : 'fw-semibold'"
+                                                          th:text="${b.remainingQuantity}">—</span>
+                                                </td>
+                                                <td class="small text-muted" th:text="${b.supplier != null ? b.supplier : '—'}">—</td>
+                                                <td class="small">
+                                                    <span th:if="${b.remainingQuantity == 0}" class="badge bg-secondary">Exhausted</span>
+                                                    <span th:if="${b.remainingQuantity > 0 && b.expiryDate.isBefore(T(java.time.LocalDate).now())}" class="badge bg-danger">Expired</span>
+                                                    <span th:if="${b.remainingQuantity > 0 && !b.expiryDate.isBefore(T(java.time.LocalDate).now())}" class="badge bg-success">Available</span>
+                                                </td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </td>
+                            </tr>
+                            </th:block>
+
+                            <!-- Empty state -->
+                            <tr th:if="${#lists.isEmpty(stockList)}" id="serverEmptyRow">
+                                <td colspan="10" class="text-center text-muted py-5">
+                                    <i class="bi bi-box-seam fs-2 d-block mb-2 opacity-50"></i>
+                                    No stock items yet. Use "Restock Item" to add inventory.
+                                </td>
+                            </tr>
+                            </tbody>
+                            <tfoot>
+                            <tr id="noResultsRow" style="display:none;">
+                                <td colspan="10" class="text-center text-muted py-4">
+                                    <i class="bi bi-search fs-3 d-block mb-2 opacity-50"></i>
+                                    No items match your search.
+                                </td>
+                            </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- =================================================================
+     Restock Modal
+================================================================== -->
+<div class="modal fade" id="restockModal" tabindex="-1" aria-labelledby="restockModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="restockModalLabel">
+                    <i class="bi bi-plus-circle me-2 text-success"></i>Restock Item
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="@{/pharmacist/stock/restock}" method="post" id="restockForm">
+                <div class="modal-body">
+
+                    <!-- Step 1 — search catalogue -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Search Item (Medication / Reagent)</label>
+                        <input type="text" id="catalogueSearch" class="form-control"
+                               placeholder="Type item name, e.g. Panadol, Reagent X…"
+                               autocomplete="off" oninput="debouncedSearch(this.value)">
+                        <div id="catalogueResults" class="list-group mt-1" style="max-height:200px;overflow-y:auto;"></div>
+                    </div>
+
+                    <!-- Selected item display -->
+                    <div id="selectedItemCard" class="selected-item-card mb-3 d-none">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong id="selectedItemName">—</strong>
+                                <span id="selectedItemType" class="badge bg-success ms-2">PHARMACY</span>
+                                <div class="text-muted small" id="selectedItemClass">—</div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    onclick="clearSelectedItem()">
+                                <i class="bi bi-x"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Hidden field -->
+                    <input type="hidden" id="priceItemId" name="priceItemId" required>
+
+                    <!-- Quantity -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="qty">Quantity Received <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="qty" name="quantity"
+                               min="1" placeholder="e.g. 84" required>
+                    </div>
+
+                    <div class="row g-3">
+                        <!-- Expiry Date (required) -->
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold" for="expiryDate">Expiry Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="expiryDate" name="expiryDate"
+                                   th:min="${#temporals.format(#temporals.createToday(), 'yyyy-MM-dd')}" required>
+                            <div class="form-text">Used to assign FEFO batch order.</div>
+                        </div>
+                        <!-- Supplier -->
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold" for="supplier">Supplier (optional)</label>
+                            <input type="text" class="form-control" id="supplier" name="supplier"
+                                   placeholder="e.g. MediSupply Ltd">
+                        </div>
+                        <!-- Notes -->
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold" for="notes">Notes (optional)</label>
+                            <input type="text" class="form-control" id="notes" name="notes"
+                                   placeholder="Invoice no., delivery ref…">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" id="submitRestockBtn" class="btn btn-success" disabled>
+                        <i class="bi bi-check-lg me-1"></i>Save Restock
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ======================== Scripts ========================= -->
+<th:block th:replace="~{pharmacist/fragments :: scripts}"></th:block>
+<script th:inline="javascript">
+    /* ---- Batch expand/collapse ---- */
+    function toggleBatches(btn) {
+        var targetId = btn.getAttribute('data-target');
+        var row = document.getElementById(targetId);
+        var icon = btn.querySelector('i');
+        if (!row) return;
+        var hidden = row.style.display === 'none' || row.style.display === '';
+        row.style.display = hidden ? '' : 'none';
+        icon.className = hidden ? 'bi bi-chevron-down' : 'bi bi-chevron-right';
+    }
+
+    /* ---- Client-side stock table filter ---- */
+    function filterStock() {
+        var term = document.getElementById('stockSearch').value.toLowerCase().trim();
+        // Only target main data rows (not batch sub-rows which have an id starting with "batches-")
+        var rows = document.querySelectorAll('#stockRows tr[data-name]');
+        var visible = 0;
+        rows.forEach(function(row) {
+            // Skip batch sub-rows from the count/toggle - they're controlled by toggleBatches()
+            if (row.id && row.id.startsWith('batches-')) {
+                row.style.display = 'none'; // always collapse batch rows on search
+                // also reset the parent row's toggle icon
+                return;
+            }
+            var name = row.getAttribute('data-name') || '';
+            var show = !term || name.includes(term);
+            row.style.display = show ? '' : 'none';
+            if (show) visible++;
+            // If parent is hidden, also hide corresponding batch row
+            if (!show && row.id) {
+                var batchRow = document.getElementById('batches-' + row.id.replace('row-',''));
+                if (batchRow) batchRow.style.display = 'none';
+            }
+        });
+        var noRes = document.getElementById('noResultsRow');
+        if (noRes) noRes.style.display = (visible === 0 && rows.length > 0) ? '' : 'none';
+    }
+
+    /* ---- Restock modal: catalogue AJAX search ---- */
+    var searchTimer = null;
+    function debouncedSearch(val) {
+        clearTimeout(searchTimer);
+        if (!val || val.trim().length < 2) {
+            document.getElementById('catalogueResults').innerHTML = '';
+            return;
+        }
+        searchTimer = setTimeout(function() { doSearch(val.trim()); }, 280);
+    }
+
+    function doSearch(q) {
+        fetch('/pharmacist/api/catalogue/search?q=' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(items) {
+                var container = document.getElementById('catalogueResults');
+                if (!items || items.length === 0) {
+                    container.innerHTML = '<div class="list-group-item text-muted small">No matching items found in price catalogue.</div>';
+                    return;
+                }
+                container.innerHTML = items.map(function(it) {
+                    var typeCls = it.type && it.type.toLowerCase() === 'pharmacy'
+                                  ? 'bg-success text-white' : 'bg-info text-white';
+                    return '<button type="button" class="list-group-item list-group-item-action catalogue-result-item"' +
+                           ' onclick="selectItem(\'' + it.id + '\',\'' + escHtml(it.name) + '\',\'' +
+                           escHtml(it.type) + '\',\'' + escHtml(it.classification) + '\')">' +
+                           '<span class="badge ' + typeCls + ' me-2 small">' + escHtml(it.type) + '</span>' +
+                           '<strong>' + escHtml(it.name) + '</strong>' +
+                           (it.classification ? ' <span class="text-muted small">— ' + escHtml(it.classification) + '</span>' : '') +
+                           ' <span class="text-muted small float-end">$' + it.price + '</span>' +
+                           '</button>';
+                }).join('');
+            })
+            .catch(function() {
+                document.getElementById('catalogueResults').innerHTML =
+                    '<div class="list-group-item text-danger small">Search failed. Please try again.</div>';
+            });
+    }
+
+    function selectItem(id, name, type, classification) {
+        document.getElementById('priceItemId').value = id;
+        document.getElementById('selectedItemName').textContent  = name;
+        document.getElementById('selectedItemType').textContent  = type.toUpperCase();
+        document.getElementById('selectedItemType').className    = 'badge ms-2 ' +
+            (type.toLowerCase() === 'pharmacy' ? 'bg-success' : 'bg-info');
+        document.getElementById('selectedItemClass').textContent = classification || '';
+        document.getElementById('selectedItemCard').classList.remove('d-none');
+        document.getElementById('catalogueSearch').value = name;
+        document.getElementById('catalogueResults').innerHTML = '';
+        document.getElementById('submitRestockBtn').disabled = false;
+    }
+
+    function clearSelectedItem() {
+        document.getElementById('priceItemId').value = '';
+        document.getElementById('selectedItemCard').classList.add('d-none');
+        document.getElementById('catalogueSearch').value = '';
+        document.getElementById('catalogueResults').innerHTML = '';
+        document.getElementById('submitRestockBtn').disabled = true;
+    }
+
+    function escHtml(s) {
+        if (!s) return '';
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    /* Re-open modal on error flash */
+    window.addEventListener('DOMContentLoaded', function() {
+        var errorBanner = document.querySelector('.alert-danger');
+        if (errorBanner) {
+            new bootstrap.Modal(document.getElementById('restockModal')).show();
+        }
+    });
+</script>
+</body>
+</html>

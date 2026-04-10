@@ -1,0 +1,26 @@
+# =============================================
+#  DEV PROFILE — local PostgreSQL
+#  TEMPLATE: copy this to application-dev.properties and fill in your values.
+#  application-dev.properties is gitignored — never commit it with real credentials.
+# =============================================
+
+spring.datasource.url=jdbc:postgresql://localhost:5432/adags_hospital
+spring.datasource.username=YOUR_DB_USERNAME
+spring.datasource.password=YOUR_DB_PASSWORD
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+spring.datasource.hikari.pool-name=HospitalHikariPool-Dev
+spring.datasource.hikari.maximum-pool-size=10
+spring.datasource.hikari.minimum-idle=2
+spring.datasource.hikari.connection-timeout=20000
+spring.datasource.hikari.idle-timeout=300000
+spring.datasource.hikari.max-lifetime=1800000
+
+# Show SQL in dev
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.use_sql_comments=true
+
+logging.level.com.adags.hospital=DEBUG
+logging.level.org.hibernate.SQL=DEBUG
+logging.level.org.hibernate.type.descriptor.sql.BasicBinder=TRACE
+logging.level.org.springframework.security=DEBUG

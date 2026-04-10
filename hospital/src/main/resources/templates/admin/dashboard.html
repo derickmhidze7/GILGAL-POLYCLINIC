@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{admin/fragments :: head('Dashboard')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{admin/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{admin/fragments :: topbar('Dashboard')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{admin/fragments :: alerts}"></th:block>
+
+            <!-- Stat Cards -->
+            <div class="row g-4 mb-4">
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card stat-card--green">
+                        <div class="stat-card__icon"><i class="bi bi-tags-fill"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value" th:text="${totalItems}">0</div>
+                            <div class="stat-card__label">Total Price Items</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card stat-card--teal">
+                        <div class="stat-card__icon"><i class="bi bi-capsule-pill"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value" th:text="${pharmacyCount}">0</div>
+                            <div class="stat-card__label">Pharmacy Items</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card stat-card--blue">
+                        <div class="stat-card__icon"><i class="bi bi-eyedropper"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value" th:text="${labCount}">0</div>
+                            <div class="stat-card__label">Lab Tests</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card stat-card--orange">
+                        <div class="stat-card__icon"><i class="bi bi-scissors"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value" th:text="${surgeryCount}">0</div>
+                            <div class="stat-card__label">Surgery Procedures</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-lightning-charge-fill text-warning me-2"></i>Quick Actions
+                </div>
+                <div class="card-body d-flex flex-wrap gap-3">
+                    <a th:href="@{/admin/pricing}" class="btn btn-primary">
+                        <i class="bi bi-tags me-2"></i>Manage Price Catalogue
+                    </a>
+                    <a th:href="@{/admin/pricing}" class="btn btn-outline-primary">
+                        <i class="bi bi-file-earmark-excel me-2"></i>Upload Excel Prices
+                    </a>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{admin/fragments :: scripts}"></th:block>
+</body>
+</html>

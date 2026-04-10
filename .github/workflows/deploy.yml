@@ -1,0 +1,55 @@
+name: Gilgal Polyclinic, Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: gilgal-polyclinic-deploy
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # suppress Node.js 20 deprecation warning
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          envs: GH_TOKEN
+          script_stop: true
+          script: |
+            set -e
+            DEPLOY_DIR=~/GILGAL-POLYCLINIC
+
+            cd "$DEPLOY_DIR"
+
+            # Ensure the remote URL is correct and authenticated
+            git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/derickmhidze7/GILGAL-POLYCLINIC.git
+
+            # Pull latest code from main
+            git pull origin main
+
+            # Strip the token from the remote URL for safety
+            git remote set-url origin https://github.com/derickmhidze7/GILGAL-POLYCLINIC.git
+
+            # NOTE: hospital/.env is managed manually on the server — never overwritten by CI.
+            # To update credentials, SSH in and edit ~/GILGAL-POLYCLINIC/hospital/.env directly.
+
+            # Rebuild and restart only the app container — postgres keeps running untouched
+            docker compose up -d --build app
+            docker compose ps
+            docker image prune -f

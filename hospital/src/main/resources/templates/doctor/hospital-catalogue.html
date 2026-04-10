@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{doctor/fragments :: head('Hospital Catalogue')}"></th:block>
+    <style>
+        .tab-search { max-width: 320px; }
+        .stock-badge {
+            display: inline-block;
+            padding: .2em .6em;
+            border-radius: .375rem;
+            font-size: .75rem;
+            font-weight: 600;
+        }
+        .stock-badge-OK       { background: #d1fae5; color: #065f46; }
+        .stock-badge-WARNING  { background: #fef3c7; color: #92400e; }
+        .stock-badge-CRITICAL { background: #fee2e2; color: #991b1b; }
+        .stock-badge-DANGER   { background: #dc3545; color: #fff; }
+    </style>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{doctor/fragments :: sidebar}"></th:block>
+    <div id="page-content">
+        <th:block th:replace="~{doctor/fragments :: topbar('Hospital Catalogue')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{doctor/fragments :: alerts}"></th:block>
+
+            <!-- Page header -->
+            <div class="mb-4">
+                <h5 class="fw-bold mb-0">
+                    <i class="bi bi-journal-medical text-primary me-2"></i>Hospital Catalogue
+                </h5>
+                <small class="text-muted">Browse available medicines and configured laboratory tests.</small>
+            </div>
+
+            <!-- Tabs -->
+            <ul class="nav nav-tabs mb-3" id="catalogueTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active fw-semibold" id="medicines-tab"
+                            data-bs-toggle="tab" data-bs-target="#medicines-pane"
+                            type="button" role="tab">
+                        <i class="bi bi-capsule me-1"></i>Available Medicines
+                        <span class="badge bg-success-subtle text-success ms-1" id="med-count" style="display:none"></span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-semibold" id="lab-tab"
+                            data-bs-toggle="tab" data-bs-target="#lab-pane"
+                            type="button" role="tab">
+                        <i class="bi bi-flask me-1"></i>Lab Tests
+                        <span class="badge bg-primary-subtle text-primary ms-1" id="lab-count" style="display:none"></span>
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+
+                <!-- ===== MEDICINES TAB ===== -->
+                <div class="tab-pane fade show active" id="medicines-pane" role="tabpanel">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3 d-flex align-items-center gap-3 flex-wrap">
+                            <span class="fw-semibold">Available Medicines</span>
+                            <input type="search" class="form-control form-control-sm tab-search ms-auto"
+                                   id="med-search" placeholder="Search by name or category…" autocomplete="off">
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="med-loading" class="text-center text-muted py-4">
+                                <span class="spinner-border spinner-border-sm me-2"></span>Loading…
+                            </div>
+                            <div id="med-empty" class="text-center text-muted py-5 d-none">
+                                <i class="bi bi-capsule fs-1 d-block mb-2 opacity-50"></i>
+                                <p class="mb-0">No medicines currently in stock.</p>
+                            </div>
+                            <div class="table-responsive d-none" id="med-table-wrap">
+                                <table class="table table-sm table-hover mb-0 align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Name</th>
+                                            <th>Category / Brand</th>
+                                            <th class="text-end">Unit Price (TZS)</th>
+                                            <th class="text-center">Stock Level</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="med-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== LAB TESTS TAB ===== -->
+                <div class="tab-pane fade" id="lab-pane" role="tabpanel">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3 d-flex align-items-center gap-3 flex-wrap">
+                            <span class="fw-semibold">Laboratory Tests</span>
+                            <input type="search" class="form-control form-control-sm tab-search ms-auto"
+                                   id="lab-search" placeholder="Search by name, category or code…" autocomplete="off">
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="lab-loading" class="text-center text-muted py-4">
+                                <span class="spinner-border spinner-border-sm me-2"></span>Loading…
+                            </div>
+                            <div id="lab-empty" class="text-center text-muted py-5 d-none">
+                                <i class="bi bi-flask fs-1 d-block mb-2 opacity-50"></i>
+                                <p class="mb-0">No laboratory tests configured.</p>
+                            </div>
+                            <div class="table-responsive d-none" id="lab-table-wrap">
+                                <table class="table table-sm table-hover mb-0 align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Product Code</th>
+                                            <th class="text-end">Price (TZS)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="lab-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /tab-content -->
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{doctor/fragments :: scripts}"></th:block>
+<script>
+'use strict';
+
+function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function fmtTZS(v) {
+    return 'TZS ' + Number(v).toLocaleString('en-TZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function stockBadge(status, qty) {
+    return `<span class="stock-badge stock-badge-${esc(status)}">${esc(status)} (${qty})</span>`;
+}
+
+// ── Medicines tab ────────────────────────────────────────────────────────────
+let allMedicines = [];
+
+async function loadMedicines() {
+    try {
+        const r = await fetch('/doctor/api/catalogue/medicines/all');
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        allMedicines = await r.json();
+        const badge = document.getElementById('med-count');
+        badge.textContent = allMedicines.length;
+        badge.style.display = '';
+        renderMedicines(allMedicines);
+    } catch (e) {
+        document.getElementById('med-loading').innerHTML =
+            '<i class="bi bi-exclamation-circle text-danger me-1"></i>Failed to load medicines.';
+    }
+}
+
+function renderMedicines(items) {
+    const loading = document.getElementById('med-loading');
+    const empty   = document.getElementById('med-empty');
+    const wrap    = document.getElementById('med-table-wrap');
+    const tbody   = document.getElementById('med-tbody');
+    loading.classList.add('d-none');
+    if (!items.length) {
+        empty.classList.remove('d-none');
+        wrap.classList.add('d-none');
+        return;
+    }
+    empty.classList.add('d-none');
+    wrap.classList.remove('d-none');
+    tbody.innerHTML = items.map((i, idx) => `
+        <tr>
+            <td class="text-muted small">${idx + 1}</td>
+            <td class="fw-semibold">${esc(i.name)}</td>
+            <td class="text-muted small">${esc(i.classification)}</td>
+            <td class="text-end">${fmtTZS(i.price)}</td>
+            <td class="text-center">${stockBadge(i.stockStatus, i.currentQuantity)}</td>
+        </tr>
+    `).join('');
+}
+
+document.getElementById('med-search').addEventListener('input', function () {
+    const q = this.value.trim().toLowerCase();
+    if (!q) { renderMedicines(allMedicines); return; }
+    renderMedicines(allMedicines.filter(i =>
+        (i.name || '').toLowerCase().includes(q) ||
+        (i.classification || '').toLowerCase().includes(q)
+    ));
+});
+
+// ── Lab tests tab ────────────────────────────────────────────────────────────
+let allLabTests = [];
+
+async function loadLabTests() {
+    try {
+        const r = await fetch('/doctor/api/catalogue/lab/all');
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        allLabTests = await r.json();
+        const badge = document.getElementById('lab-count');
+        badge.textContent = allLabTests.length;
+        badge.style.display = '';
+        renderLabTests(allLabTests);
+    } catch (e) {
+        document.getElementById('lab-loading').innerHTML =
+            '<i class="bi bi-exclamation-circle text-danger me-1"></i>Failed to load lab tests.';
+    }
+}
+
+function renderLabTests(items) {
+    const loading = document.getElementById('lab-loading');
+    const empty   = document.getElementById('lab-empty');
+    const wrap    = document.getElementById('lab-table-wrap');
+    const tbody   = document.getElementById('lab-tbody');
+    loading.classList.add('d-none');
+    if (!items.length) {
+        empty.classList.remove('d-none');
+        wrap.classList.add('d-none');
+        return;
+    }
+    empty.classList.add('d-none');
+    wrap.classList.remove('d-none');
+    tbody.innerHTML = items.map((i, idx) => `
+        <tr>
+            <td class="text-muted small">${idx + 1}</td>
+            <td class="fw-semibold">${esc(i.name)}</td>
+            <td class="text-muted small">${esc(i.classification)}</td>
+            <td><code class="text-secondary small">${esc(i.productCode)}</code></td>
+            <td class="text-end">${fmtTZS(i.price)}</td>
+        </tr>
+    `).join('');
+}
+
+document.getElementById('lab-search').addEventListener('input', function () {
+    const q = this.value.trim().toLowerCase();
+    if (!q) { renderLabTests(allLabTests); return; }
+    renderLabTests(allLabTests.filter(i =>
+        (i.name || '').toLowerCase().includes(q) ||
+        (i.classification || '').toLowerCase().includes(q) ||
+        (i.productCode || '').toLowerCase().includes(q)
+    ));
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+loadMedicines();
+loadLabTests();
+</script>
+</body>
+</html>

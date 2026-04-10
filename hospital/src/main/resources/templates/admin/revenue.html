@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{admin/fragments :: head('Revenue Analytics')}"></th:block>
+    <style>
+        /* ── Revenue page local styles ─────────────────────────────── */
+        .filter-tab-btn {
+            border-radius: 4px;
+            font-size: .875rem;
+            padding: .35rem .85rem;
+        }
+        .filter-tab-btn.tab-active {
+            background-color: var(--primary, #2e7d32);
+            color: #fff;
+            border-color: var(--primary, #2e7d32);
+        }
+        .filter-panel { display: none; }
+        .filter-panel.visible { display: block; }
+
+        .rev-stat-card {
+            border-left: 4px solid;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(0,0,0,.07);
+        }
+        .rev-stat-card.c-total    { border-color: #2e7d32; }
+        .rev-stat-card.c-consult  { border-color: #1565c0; }
+        .rev-stat-card.c-lab      { border-color: #00838f; }
+        .rev-stat-card.c-pharmacy { border-color: #6a1b9a; }
+        .rev-stat-card.c-surgery  { border-color: #e65100; }
+
+        .rev-stat-card .stat-label { font-size: .78rem; color: #666; text-transform: uppercase; letter-spacing: .04em; }
+        .rev-stat-card .stat-value { font-size: 1.45rem; font-weight: 700; color: #1b2a1c; margin: 0; }
+        .rev-stat-card .stat-sub   { font-size: .78rem; color: #888; }
+
+        .rev-table thead th {
+            background: #f0f4f0;
+            font-size: .82rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: #444;
+        }
+        .rev-table tbody tr:last-child { font-weight: 700; background: #f8fdf8; }
+        .rev-table td, .rev-table th { vertical-align: middle; }
+
+        .cat-badge {
+            display: inline-block;
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .cat-consult  { background: #1565c0; }
+        .cat-lab      { background: #00838f; }
+        .cat-pharmacy { background: #6a1b9a; }
+        .cat-surgery  { background: #e65100; }
+        .cat-bed      { background: #558b2f; }
+        .cat-radio    { background: #6d4c41; }
+        .cat-other    { background: #757575; }
+
+        .month-row-highlight { background: rgba(46,125,50,.06); font-weight: 600; }
+        .no-data-state { padding: 3rem 1rem; text-align: center; color: #aaa; }
+    </style>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{admin/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{admin/fragments :: topbar('Revenue Analytics')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{admin/fragments :: alerts}"></th:block>
+
+            <!-- ── Page header ─────────────────────────────────────────────── -->
+            <div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-2">
+                <div>
+                    <h5 class="mb-0 fw-bold">
+                        <i class="bi bi-cash-stack me-2 text-success"></i>Revenue Analytics
+                    </h5>
+                    <small class="text-muted">
+                        Track income across Consultations, Lab Tests, Pharmacy and Surgery
+                    </small>
+                </div>
+                <button type="button" class="btn btn-success btn-sm" onclick="exportToExcel()">
+                    <i class="bi bi-file-earmark-excel-fill me-1"></i>Export to Excel
+                </button>
+            </div>
+
+            <!-- ── FILTER CARD ──────────────────────────────────────────────── -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+
+                    <!-- Tab buttons -->
+                    <div class="d-flex flex-wrap gap-2 mb-3" role="group">
+                        <button type="button" id="tab-month"
+                                class="btn btn-outline-secondary filter-tab-btn"
+                                onclick="switchFilter('month')">
+                            <i class="bi bi-calendar-month me-1"></i>Monthly
+                        </button>
+                        <button type="button" id="tab-year"
+                                class="btn btn-outline-secondary filter-tab-btn"
+                                onclick="switchFilter('year')">
+                            <i class="bi bi-calendar-range me-1"></i>Full Year
+                        </button>
+                        <button type="button" id="tab-day"
+                                class="btn btn-outline-secondary filter-tab-btn"
+                                onclick="switchFilter('day')">
+                            <i class="bi bi-calendar-day me-1"></i>Daily
+                        </button>
+                        <button type="button" id="tab-week"
+                                class="btn btn-outline-secondary filter-tab-btn"
+                                onclick="switchFilter('week')">
+                            <i class="bi bi-calendar-week me-1"></i>Weekly
+                        </button>
+                        <button type="button" id="tab-range"
+                                class="btn btn-outline-secondary filter-tab-btn"
+                                onclick="switchFilter('range')">
+                            <i class="bi bi-calendar4-range me-1"></i>Date Range
+                        </button>
+                    </div>
+
+                    <!-- Monthly filter ─────────────────────────── -->
+                    <div id="filter-month" class="filter-panel">
+                        <form method="get" th:action="@{/admin/revenue}"
+                              class="row g-2 align-items-end">
+                            <input type="hidden" name="filterType" value="month"/>
+                            <div class="col-auto">
+                                <label class="form-label mb-1 small fw-semibold">Year</label>
+                                <select name="year" class="form-select form-select-sm" style="min-width:90px">
+                                    <option th:each="y : ${#numbers.sequence(currentYear - 3, currentYear)}"
+                                            th:value="${y}"
+                                            th:selected="${y == selectedYear}"
+                                            th:text="${y}">2026</option>
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <label class="form-label mb-1 small fw-semibold">Month</label>
+                                <select name="month" class="form-select form-select-sm" style="min-width:140px">
+                                    <option value="1"  th:selected="${selectedMonth == 1}">January</option>
+                                    <option value="2"  th:selected="${selectedMonth == 2}">February</option>
+                                    <option value="3"  th:selected="${selectedMonth == 3}">March</option>
+                                    <option value="4"  th:selected="${selectedMonth == 4}">April</option>
+                                    <option value="5"  th:selected="${selectedMonth == 5}">May</option>
+                                    <option value="6"  th:selected="${selectedMonth == 6}">June</option>
+                                    <option value="7"  th:selected="${selectedMonth == 7}">July</option>
+                                    <option value="8"  th:selected="${selectedMonth == 8}">August</option>
+                                    <option value="9"  th:selected="${selectedMonth == 9}">September</option>
+                                    <option value="10" th:selected="${selectedMonth == 10}">October</option>
+                                    <option value="11" th:selected="${selectedMonth == 11}">November</option>
+                                    <option value="12" th:selected="${selectedMonth == 12}">December</option>
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-search me-1"></i>Apply
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Full Year filter ───────────────────────── -->
+                    <div id="filter-year" class="filter-panel">
+                        <form method="get" th:action="@{/admin/revenue}"
+                              class="row g-2 align-items-end">
+                            <input type="hidden" name="filterType" value="year"/>
+                            <div class="col-auto">
+                                <label class="form-label mb-1 small fw-semibold">Year</label>
+                                <select name="year" class="form-select form-select-sm" style="min-width:90px">
+                                    <option th:each="y : ${#numbers.sequence(currentYear - 3, currentYear)}"
+                                            th:value="${y}"
+                                            th:selected="${y == selectedYear}"
+                                            th:text="${y}">2026</option>
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-search me-1"></i>Apply
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Daily filter ───────────────────────────── -->
+                    <div id="filter-day" class="filter-panel">
+                        <form method="get" th:action="@{/admin/revenue}"
+                              class="row g-2 align-items-end">
+                            <input type="hidden" name="filterType" value="day"/>
+                            <div class="col-auto">
+                                <label class="form-label mb-1 small fw-semibold">Date</label>
+                                <input type="date" name="day" class="form-control form-control-sm"
+                                       th:value="${report.fromDate}"/>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-search me-1"></i>Apply
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Weekly filter ──────────────────────────── -->
+                    <div id="filter-week" class="filter-panel">
+                        <form method="get" th:action="@{/admin/revenue}"
+                              class="row g-2 align-items-end">
+                            <input type="hidden" name="filterType" value="week"/>
+                            <div class="col-auto">
+                                <label class="form-label mb-1 small fw-semibold">
+                                    Any date in the week
+                                </label>
+                                <input type="date" name="weekOf" class="form-control form-control-sm"
+                                       th:value="${report.fromDate}"/>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-search me-1"></i>Apply
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Date Range filter ──────────────────────── -->
+                    <div id="filter-range" class="filter-panel">
+                        <form method="get" th:action="@{/admin/revenue}"
+                              class="row g-2 align-items-end">
+                            <input type="hidden" name="filterType" value="range"/>
+                            <div class="col-auto">
+                                <label class="form-label mb-1 small fw-semibold">From</label>
+                                <input type="date" name="rangeFrom" class="form-control form-control-sm"
+                                       th:value="${report.fromDate}"/>
+                            </div>
+                            <div class="col-auto">
+                                <label class="form-label mb-1 small fw-semibold">To</label>
+                                <input type="date" name="rangeTo" class="form-control form-control-sm"
+                                       th:value="${report.toDate}"/>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-search me-1"></i>Apply
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div><!-- /card-body filters -->
+            </div><!-- /filter card -->
+
+            <!-- ── PERIOD HEADING ──────────────────────────────────────────── -->
+            <h6 class="fw-semibold text-success mb-3">
+                <i class="bi bi-bar-chart-line-fill me-1"></i>
+                <span th:text="${report.periodLabel}">Revenue: February 2026</span>
+            </h6>
+
+            <!-- ── SUMMARY STAT CARDS ──────────────────────────────────────── -->
+            <div class="row g-3 mb-4">
+
+                <!-- Grand Total -->
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="rev-stat-card c-total p-3 h-100">
+                        <div class="stat-label"><i class="bi bi-cash-stack me-1 text-success"></i>Total Revenue</div>
+                        <p class="stat-value"
+                           th:text="'TZS /= ' + ${#numbers.formatDecimal(report.grandTotal, 1, 'COMMA', 2, 'POINT')}">TZS /= 0.00</p>
+                        <div class="stat-sub"
+                             th:text="${report.totalInvoices} + ' invoice(s) counted'">0 invoices</div>
+                    </div>
+                </div>
+
+                <!-- Per-category summary cards — one card for each category in results -->
+                <th:block th:each="cat : ${report.categories}">
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="rev-stat-card p-3 h-100"
+                             th:classappend="${cat.categoryLabel.startsWith('Consult')} ? 'c-consult'
+                                           : (${cat.categoryLabel.startsWith('Lab')} ? 'c-lab'
+                                           : (${cat.categoryLabel.startsWith('Pharmacy')} ? 'c-pharmacy'
+                                           : (${cat.categoryLabel.startsWith('Surgery')} ? 'c-surgery'
+                                           : 'c-total')))">
+                            <div class="stat-label" th:text="${cat.categoryLabel}">—</div>
+                            <p class="stat-value"
+                               th:text="'TZS /= ' + ${#numbers.formatDecimal(cat.total, 1, 'COMMA', 2, 'POINT')}">TZS /= 0.00</p>
+                            <div class="stat-sub"
+                                 th:text="${cat.invoiceCount} + ' invoice(s)'">0 invoices</div>
+                        </div>
+                    </div>
+                </th:block>
+
+            </div>
+
+            <!-- ── CATEGORY BREAKDOWN TABLE ────────────────────────────────── -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white d-flex align-items-center gap-2 fw-semibold">
+                    <i class="bi bi-table text-success"></i>
+                    Revenue Breakdown by Category
+                    <small class="text-muted fw-normal ms-1"
+                           th:text="'(' + ${report.periodLabel} + ')'"></small>
+                </div>
+                <div class="card-body p-0">
+
+                    <!-- Data present -->
+                    <div th:if="${not #lists.isEmpty(report.categories)}">
+                        <table class="table rev-table mb-0" id="tblCategory">
+                            <thead>
+                                <tr>
+                                    <th class="ps-3">Category</th>
+                                    <th class="text-end">Invoices</th>
+                                    <th class="text-end pe-3">Amount (TZS /=)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="cat : ${report.categories}">
+                                    <td class="ps-3">
+                                        <span class="cat-badge"
+                                              th:classappend="${cat.categoryLabel.startsWith('Consult')} ? 'cat-consult'
+                                                            : (${cat.categoryLabel.startsWith('Lab')} ? 'cat-lab'
+                                                            : (${cat.categoryLabel.startsWith('Pharm')} ? 'cat-pharmacy'
+                                                            : (${cat.categoryLabel.startsWith('Surg')} ? 'cat-surgery'
+                                                            : (${cat.categoryLabel.startsWith('Bed')} ? 'cat-bed'
+                                                            : (${cat.categoryLabel.startsWith('Radio')} ? 'cat-radio'
+                                                            : 'cat-other')))))">
+                                        </span>
+                                        <a th:href="@{/admin/revenue/items(filterType='range',rangeFrom=${report.fromDate},rangeTo=${report.toDate},category=${cat.categoryCode})}"
+                                           class="text-decoration-none fw-medium"
+                                           th:text="${cat.categoryLabel}">—</a>
+                                    </td>
+                                    <td class="text-end"
+                                        th:text="${#numbers.formatInteger(cat.invoiceCount, 1, 'COMMA')}">0</td>
+                                    <td class="text-end pe-3"
+                                        th:text="${#numbers.formatDecimal(cat.total, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+                                </tr>
+                                <!-- Totals row -->
+                                <tr>
+                                    <td class="ps-3">
+                                        <i class="bi bi-funnel-fill text-success me-1"></i>Total
+                                    </td>
+                                    <td class="text-end"
+                                        th:text="${#numbers.formatInteger(report.totalInvoices, 1, 'COMMA')}">0</td>
+                                    <td class="text-end pe-3"
+                                        th:text="${#numbers.formatDecimal(report.grandTotal, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- No data -->
+                    <div th:if="${#lists.isEmpty(report.categories)}" class="no-data-state">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        No revenue found for the selected period.<br/>
+                        <small>Counts ISSUED, PARTIALLY PAID, and PAID invoices.</small>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ── MONTHLY OVERVIEW TABLE ───────────────────────────────────── -->
+            <div th:if="${not #lists.isEmpty(report.monthlyRows)}"
+                 class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white d-flex align-items-center gap-2 fw-semibold">
+                    <i class="bi bi-calendar3 text-success"></i>
+                    Monthly Overview
+                    <small class="text-muted fw-normal ms-1"
+                           th:text="'— ' + ${report.selectedYear}"></small>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table rev-table mb-0" id="tblMonthly">
+                        <thead>
+                            <tr>
+                                <th class="ps-3">Month</th>
+                                <th class="text-end pe-3">Revenue (TZS /=)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="mr : ${report.monthlyRows}"
+                                th:classappend="${mr.monthNum == report.selectedMonth and filterType == 'month'} ? 'month-row-highlight'">
+                                <td class="ps-3">
+                                    <a th:href="@{/admin/revenue(filterType='month',year=${report.selectedYear},month=${mr.monthNum})}"
+                                       class="text-decoration-none fw-medium"
+                                       th:text="${mr.monthName}">January</a>
+                                </td>
+                                <td class="text-end pe-3"
+                                    th:text="${#numbers.formatDecimal(mr.total, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+                            </tr>
+                            <!-- Year total row -->
+                            <tr>
+                                <td class="ps-3">
+                                    <i class="bi bi-bar-chart-fill text-success me-1"></i>Year Total
+                                </td>
+                                <td class="text-end pe-3"
+                                    th:text="${#numbers.formatDecimal(report.yearTotal, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{admin/fragments :: scripts}"></th:block>
+
+<!-- SheetJS for browser-side Excel export -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+<script th:inline="javascript">
+/*<![CDATA[*/
+const CURRENT_FILTER = /*[[${filterType}]]*/ 'month';
+const PERIOD_LABEL   = /*[[${report.periodLabel}]]*/ 'Revenue';
+
+// ── Filter tab switching ─────────────────────────────────────────────────────
+function switchFilter(type) {
+    document.querySelectorAll('.filter-panel').forEach(p => p.classList.remove('visible'));
+    document.querySelectorAll('.filter-tab-btn').forEach(b => b.classList.remove('tab-active'));
+    const panel = document.getElementById('filter-' + type);
+    const tab   = document.getElementById('tab-' + type);
+    if (panel) panel.classList.add('visible');
+    if (tab)   tab.classList.add('tab-active');
+}
+
+// ── Excel export ─────────────────────────────────────────────────────────────
+function exportToExcel() {
+    const wb = XLSX.utils.book_new();
+
+    const tbl1 = document.getElementById('tblCategory');
+    if (tbl1) {
+        const ws1 = XLSX.utils.table_to_sheet(tbl1);
+        // Auto-width columns
+        const range = XLSX.utils.decode_range(ws1['!ref']);
+        const cols  = [];
+        for (let c = range.s.c; c <= range.e.c; c++) {
+            let max = 10;
+            for (let r = range.s.r; r <= range.e.r; r++) {
+                const cell = ws1[XLSX.utils.encode_cell({r, c})];
+                if (cell && cell.v) max = Math.max(max, String(cell.v).length + 2);
+            }
+            cols.push({ wch: max });
+        }
+        ws1['!cols'] = cols;
+        XLSX.utils.book_append_sheet(wb, ws1, 'Category Breakdown');
+    }
+
+    const tbl2 = document.getElementById('tblMonthly');
+    if (tbl2) {
+        const ws2 = XLSX.utils.table_to_sheet(tbl2);
+        ws2['!cols'] = [{wch: 16}, {wch: 18}];
+        XLSX.utils.book_append_sheet(wb, ws2, 'Monthly Overview');
+    }
+
+    if (wb.SheetNames.length === 0) {
+        alert('No data tables found to export.');
+        return;
+    }
+
+    const safe = PERIOD_LABEL.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+    XLSX.writeFile(wb, 'Revenue_' + safe + '.xlsx');
+}
+
+// ── Init on load ─────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => switchFilter(CURRENT_FILTER));
+/*]]>*/
+</script>
+</body>
+</html>

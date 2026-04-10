@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{pharmacist/fragments :: head('Dispense Medication')}"></th:block>
+</head>
+<body>
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{pharmacist/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{pharmacist/fragments :: topbar('Dispense Medication')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{pharmacist/fragments :: alerts}"></th:block>
+
+            <!-- Allergy Warnings -->
+            <div th:if="${!#lists.isEmpty(allergyWarnings)}"
+                 class="alert alert-danger mb-4">
+                <h6 class="alert-heading"><i class="bi bi-exclamation-triangle-fill me-2"></i>Allergy Warning!</h6>
+                <ul class="mb-0">
+                    <li th:each="w : ${allergyWarnings}" th:text="${w}"></li>
+                </ul>
+            </div>
+
+            <!-- Prescription Info -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-file-medical-fill me-2 text-success"></i>Prescription Details
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="text-muted small">Patient</label>
+                            <p class="mb-0 fw-semibold"
+                               th:text="${prescription.medicalRecord.patient.firstName + ' ' + prescription.medicalRecord.patient.lastName}"></p>
+                            <small class="text-muted"
+                                   th:text="${prescription.medicalRecord.patient.nationalId}"></small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="text-muted small">Medication</label>
+                            <!-- New price-item prescription -->
+                            <th:block th:if="${prescription.priceItem != null}">
+                                <p class="mb-0 fw-semibold" th:text="${prescription.priceItem.productName}"></p>
+                                <small class="text-muted"
+                                       th:text="${prescription.priceItem.classification != null ? prescription.priceItem.classification : ''}"></small>
+                            </th:block>
+                            <!-- Legacy medication prescription -->
+                            <th:block th:if="${prescription.medication != null}">
+                                <p class="mb-0 fw-semibold" th:text="${prescription.medication.genericName}"></p>
+                                <small th:if="${prescription.medication.brandName != null}"
+                                       class="text-muted"
+                                       th:text="${prescription.medication.brandName}"></small>
+                            </th:block>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="text-muted small">Form &amp; Strength</label>
+                            <p class="mb-0"
+                               th:if="${prescription.medication != null}"
+                               th:text="${prescription.medication.form + ' / ' + prescription.medication.strength}"></p>
+                            <p class="mb-0 text-muted small" th:if="${prescription.medication == null}">—</p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="text-muted small">Dosage</label>
+                            <p class="mb-0" th:text="${prescription.dosage}"></p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="text-muted small">Frequency / Duration</label>
+                            <p class="mb-0"
+                               th:text="${prescription.frequency + ' × ' + prescription.duration}"></p>
+                        </div>
+                        <div class="col-12" th:if="${prescription.instructions != null}">
+                            <label class="text-muted small">Instructions</label>
+                            <p class="mb-0" th:text="${prescription.instructions}"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dispense Form -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-capsule-pill me-2 text-success"></i>Dispensing
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/pharmacist/prescription/{id}/dispense(id=${prescription.id})}"
+                          method="post">
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Select Inventory Batch <span class="text-danger">*</span></label>
+
+                                <!-- ── New path: StockBatch (FEFO) ───────────────────────────────── -->
+                                <th:block th:if="${!#lists.isEmpty(stockBatches)}">
+                                    <select name="stockBatchId" class="form-select" required
+                                            onchange="updateMaxQty(this)">
+                                        <option value="">— Select Batch (earliest expiry first) —</option>
+                                        <option th:each="b : ${stockBatches}"
+                                                th:value="${b.id}"
+                                                th:attr="data-max=${b.remainingQuantity}"
+                                                th:text="${'Batch: ' + b.batchNumber
+                                                          + ' | Exp: ' + #temporals.format(b.expiryDate,'dd MMM yyyy')
+                                                          + ' | Available: ' + b.remainingQuantity + ' units'}">—</option>
+                                    </select>
+                                    <div class="text-muted small mt-1">
+                                        <i class="bi bi-info-circle me-1"></i>Batches sorted by expiry date (FEFO — earliest first).
+                                    </div>
+                                </th:block>
+
+                                <!-- ── Old path: InventoryItem ───────────────────────────────────── -->
+                                <th:block th:if="${#lists.isEmpty(stockBatches)}">
+                                    <select name="inventoryItemId" class="form-select" required
+                                            onchange="updateMaxQty(this)">
+                                        <option value="">— Select Batch —</option>
+                                        <option th:each="item : ${inventoryItems}"
+                                                th:value="${item.id}"
+                                                th:attr="data-max=${item.quantityInStock}"
+                                                th:text="${item.medication.genericName + ' | Batch: ' + item.batchNumber
+                                                          + ' | Exp: ' + #temporals.format(item.expiryDate,'dd MMM yyyy')
+                                                          + ' | In Stock: ' + item.quantityInStock + ' | Cost: $' + item.unitCost}">
+                                        </option>
+                                    </select>
+                                    <div th:if="${#lists.isEmpty(inventoryItems)}"
+                                         class="text-danger small mt-1">
+                                        <i class="bi bi-exclamation-circle me-1"></i>No inventory available for this medication.
+                                    </div>
+                                </th:block>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Quantity to Dispense <span class="text-danger">*</span></label>
+                                <input type="number" name="quantityDispensed" id="quantityDispensed"
+                                       class="form-control" min="1" step="1"
+                                       th:value="${prescription.totalQuantityToDispense != null ? prescription.totalQuantityToDispense : 1}"
+                                       required
+                                       oninput="enforceInteger(this)"
+                                       title="Whole numbers only — no decimals allowed"/>
+                                <div class="text-muted small mt-1" id="maxQtyHint">
+                                    <th:block th:if="${prescription.totalQuantityToDispense != null}">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        Doctor prescribed <strong th:text="${prescription.totalQuantityToDispense}"></strong> units — adjust if needed.
+                                    </th:block>
+                                </div>
+                                <div class="invalid-feedback" id="qtyError">
+                                    Quantity must be a whole number (e.g. 1, 5, 30). Decimals are not allowed.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Dispensing Notes</label>
+                            <input type="text" name="dispensingNotes" class="form-control"
+                                   placeholder="e.g. Patient advised to take with food"/>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Counselling Notes</label>
+                            <textarea name="counsellingNotes" class="form-control" rows="3"
+                                      placeholder="Counselling provided to patient regarding medication use, side effects, storage..."></textarea>
+                        </div>
+
+                        <!-- Receipt / Label Print Section -->
+                        <div class="card bg-light border-0 mb-4 d-none" id="receiptPreview">
+                            <div class="card-body">
+                                <h6>Medication Label Preview</h6>
+                                <div id="receiptContent">
+                                    <p><strong>Patient:</strong>
+                                        <span th:text="${prescription.medicalRecord.patient.firstName + ' ' + prescription.medicalRecord.patient.lastName}"></span>
+                                    </p>
+                                    <p><strong>Medication:</strong>
+                                        <th:block th:if="${prescription.priceItem != null}">
+                                            <span th:text="${prescription.priceItem.productName}"></span>
+                                        </th:block>
+                                        <th:block th:if="${prescription.medication != null}">
+                                            <span th:text="${prescription.medication.genericName}"></span>
+                                            <span th:if="${prescription.medication.brandName != null}"
+                                                  th:text="' (' + ${prescription.medication.brandName} + ')'"></span>
+                                        </th:block>
+                                    </p>
+                                    <p><strong>Dosage:</strong> <span th:text="${prescription.dosage}"></span></p>
+                                    <p><strong>Frequency:</strong> <span th:text="${prescription.frequency}"></span></p>
+                                    <p><strong>Duration:</strong> <span th:text="${prescription.duration}"></span></p>
+                                    <p th:if="${prescription.instructions != null}">
+                                        <strong>Instructions:</strong> <span th:text="${prescription.instructions}"></span>
+                                    </p>
+                                </div>
+                                <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-printer me-1"></i>Print Label
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success"
+                                    th:disabled="${#lists.isEmpty(stockBatches) && #lists.isEmpty(inventoryItems)}">
+                                <i class="bi bi-check-circle-fill me-1"></i>Confirm Dispense
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary"
+                                    onclick="document.getElementById('receiptPreview').classList.toggle('d-none')">
+                                <i class="bi bi-tag me-1"></i>Preview Label
+                            </button>
+                            <a th:href="@{/pharmacist/dashboard}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{pharmacist/fragments :: scripts}"></th:block>
+<script>
+    function updateMaxQty(selectEl) {
+        var opt = selectEl.options[selectEl.selectedIndex];
+        var max = opt ? opt.getAttribute('data-max') : null;
+        var hint = document.getElementById('maxQtyHint');
+        var qtyInput = document.getElementById('quantityDispensed');
+        if (max) {
+            hint.textContent = 'Available in this batch: ' + max + ' units';
+            qtyInput.max = max;
+        } else {
+            hint.textContent = '';
+            qtyInput.removeAttribute('max');
+        }
+    }
+
+    /**
+     * Enforce integer-only input on the quantity field.
+     * Rejects any value that contains a decimal point or is not a whole number.
+     * The pharmacist MUST enter a strict positive integer (e.g. 1, 5, 30).
+     */
+    function enforceInteger(input) {
+        var val = input.value;
+        // Remove any decimal portion the user may have typed
+        if (val.indexOf('.') !== -1) {
+            input.value = val.split('.')[0];
+            val = input.value;
+        }
+        // Parse as integer and validate
+        var intVal = parseInt(val, 10);
+        var errEl  = document.getElementById('qtyError');
+        if (!Number.isInteger(intVal) || intVal < 1 || String(intVal) !== String(val).trim()) {
+            input.classList.add('is-invalid');
+            if (errEl) errEl.style.display = 'block';
+        } else {
+            input.classList.remove('is-invalid');
+            if (errEl) errEl.style.display = 'none';
+            input.value = intVal;  // normalise (strip any leading zeros)
+        }
+    }
+
+    // Block form submission if quantity is non-integer
+    document.addEventListener('DOMContentLoaded', function () {
+        var form = document.querySelector('form');
+        if (!form) return;
+        form.addEventListener('submit', function (e) {
+            var qtyInput = document.getElementById('quantityDispensed');
+            if (!qtyInput) return;
+            var val    = qtyInput.value.trim();
+            var intVal = parseInt(val, 10);
+            if (!Number.isInteger(intVal) || intVal < 1 || String(intVal) !== val || val.indexOf('.') !== -1) {
+                e.preventDefault();
+                qtyInput.classList.add('is-invalid');
+                var errEl = document.getElementById('qtyError');
+                if (errEl) errEl.style.display = 'block';
+                qtyInput.focus();
+            }
+        });
+    });
+</script>
+</body>
+</html>

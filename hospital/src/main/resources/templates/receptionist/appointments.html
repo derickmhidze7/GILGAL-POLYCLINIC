@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{receptionist/fragments :: head('Appointments')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{receptionist/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{receptionist/fragments :: topbar('Appointments')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{receptionist/fragments :: alerts}"></th:block>
+
+            <!-- Header row -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="fw-semibold mb-0">
+                    <i class="bi bi-calendar-check-fill me-2 text-success"></i>Appointments
+                </h5>
+                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#bookModal">
+                    <i class="bi bi-calendar-plus me-2"></i>Book Appointment
+                </button>
+            </div>
+
+            <!-- Appointments Table -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Patient</th>
+                                <th>Doctor</th>
+                                <th>Date &amp; Time</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Referred Specialist</th>
+                                <th>Notes</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="appt : ${appointments}">
+                                <td>
+                                    <a th:href="@{/receptionist/patients/{id}(id=${appt.patientId})}"
+                                       class="fw-semibold text-decoration-none"
+                                       th:text="${appt.patientFullName}">—</a>
+                                </td>
+                                <td th:text="${appt.doctorFullName != null ? appt.doctorFullName : 'Unassigned'}">—</td>
+                                <td th:text="${#temporals.format(appt.scheduledDateTime, 'dd MMM yyyy HH:mm')}">—</td>
+                                <td th:text="${appt.appointmentType}">—</td>
+                                <td>
+                                    <span th:classappend="${appt.status.name() == 'SCHEDULED'} ? 'badge bg-primary' :
+                                                          (${appt.status.name() == 'CONFIRMED'} ? 'badge bg-success' :
+                                                          (${appt.status.name() == 'CANCELLED'} ? 'badge bg-danger' :
+                                                          (${appt.status.name() == 'COMPLETED'} ? 'badge bg-secondary' : 'badge bg-warning')))"
+                                          th:text="${appt.status}">—</span>
+                                </td>
+                                <!-- Referred Specialist column -->
+                                <td>
+                                    <th:block th:if="${forwardMap != null and forwardMap.containsKey(appt.id)}">
+                                        <span class="fw-semibold"
+                                              th:text="${forwardMap[appt.id].forwardedDoctor().firstName + ' ' + forwardMap[appt.id].forwardedDoctor().lastName}">—</span>
+                                        <br/>
+                                        <small class="text-muted"
+                                               th:text="${forwardMap[appt.id].forwardedDoctor().specialization}">—</small>
+                                    </th:block>
+                                    <span th:unless="${forwardMap != null and forwardMap.containsKey(appt.id)}" class="text-muted">—</span>
+                                </td>
+                                <td th:text="${appt.notes != null ? appt.notes : '—'}">—</td>
+                                <td>
+                                    <!-- Cancel button (only shown for SCHEDULED / CONFIRMED) -->
+                                    <button th:if="${appt.status.name() == 'SCHEDULED' || appt.status.name() == 'CONFIRMED'}"
+                                            class="btn btn-sm btn-outline-danger"
+                                            data-bs-toggle="modal" data-bs-target="#cancelModal"
+                                            th:data-appt-id="${appt.id}"
+                                            th:data-appt-patient="${appt.patientFullName}"
+                                            onclick="prepareCancel(this)">
+                                        <i class="bi bi-x-circle me-1"></i>Cancel
+                                    </button>
+                                    <!-- Reschedule button — shown for SPECIALIST type appointments that are still active -->
+                                    <button th:if="${appt.appointmentType.name() == 'SPECIALIST' && (appt.status.name() == 'SCHEDULED' || appt.status.name() == 'CONFIRMED')}"
+                                            class="btn btn-sm btn-outline-primary ms-1"
+                                            data-bs-toggle="modal" data-bs-target="#scheduleSpecialistModal"
+                                            th:data-appt-id="${appt.id}"
+                                            th:data-doctor-id="${appt.doctorId}"
+                                            th:data-doctor-name="${appt.doctorFullName}"
+                                            th:data-patient-id="${appt.patientId}"
+                                            th:data-scheduled-dt="${appt.scheduledDateTime}"
+                                            th:data-mode="reschedule"
+                                            onclick="prepareSpecialist(this)">
+                                        <i class="bi bi-calendar2-week me-1"></i>Reschedule
+                                    </button>
+                                    <!-- Schedule Specialist button (invoice PAID, forwarded doctor set) -->
+                                    <button th:if="${forwardMap != null and forwardMap.containsKey(appt.id) and forwardMap[appt.id].invoicePaid()}"
+                                            class="btn btn-sm btn-outline-success ms-1"
+                                            data-bs-toggle="modal" data-bs-target="#scheduleSpecialistModal"
+                                            th:data-appt-id="${appt.id}"
+                                            th:data-doctor-id="${forwardMap[appt.id].forwardedDoctor().id}"
+                                            th:data-doctor-name="${forwardMap[appt.id].forwardedDoctor().firstName + ' ' + forwardMap[appt.id].forwardedDoctor().lastName}"
+                                            th:data-patient-id="${appt.patientId}"
+                                            th:data-mode="schedule"
+                                            onclick="prepareSpecialist(this)">
+                                        <i class="bi bi-calendar-plus me-1"></i>Schedule Specialist
+                                    </button>
+                                    <!-- Payment Required badge (invoice not yet paid, forwarded doctor set) -->
+                                    <span th:if="${forwardMap != null and forwardMap.containsKey(appt.id) and !forwardMap[appt.id].invoicePaid()}"
+                                          class="badge bg-warning text-dark ms-1" title="Pay consultation invoice first">
+                                        <i class="bi bi-lock-fill me-1"></i>Payment Required
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(appointments)}">
+                                <td colspan="8" class="text-center text-muted py-3">No appointments found.</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Pagination bar -->
+                <div th:if="${totalPages > 1}"
+                     class="card-footer bg-white d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 px-3">
+                    <small class="text-muted">
+                        Page <span th:text="${currentPage + 1}"></span> of <span th:text="${totalPages}"></span>
+                        &mdash; <span th:text="${totalAppointments}"></span> appointment<span th:if="${totalAppointments != 1}">s</span>
+                    </small>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                                <a class="page-link" th:href="@{/receptionist/appointments(page=${currentPage - 1})}">&#8249;</a>
+                            </li>
+                            <th:block th:with="start=${T(java.lang.Math).max(0, currentPage - 2)}, end=${T(java.lang.Math).min(totalPages - 1, start + 4)}">
+                                <li class="page-item" th:each="i : ${#numbers.sequence(start, end)}"
+                                    th:classappend="${i == currentPage} ? 'active'">
+                                    <a class="page-link" th:href="@{/receptionist/appointments(page=${i})}" th:text="${i + 1}">1</a>
+                                </li>
+                            </th:block>
+                            <li class="page-item" th:classappend="${currentPage >= totalPages - 1} ? 'disabled'">
+                                <a class="page-link" th:href="@{/receptionist/appointments(page=${currentPage + 1})}">&#8250;</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Book Appointment Modal -->
+<div class="modal fade" id="bookModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-calendar-plus me-2"></i>Book Appointment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="@{/receptionist/appointments}" method="post">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Patient <span class="text-danger">*</span></label>
+                        <select class="form-select" name="patientId" required>
+                            <option value="">Select patient…</option>
+                            <option th:each="p : ${patients}"
+                                    th:value="${p.id}"
+                                    th:text="${p.firstName + ' ' + p.lastName + (p.nationalId != null ? ' · ' + p.nationalId : '')}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Doctor</label>
+                        <select class="form-select" name="doctorId">
+                            <option value="">— Unassigned —</option>
+                            <option th:each="d : ${doctors}"
+                                    th:value="${d.id}"
+                                    th:text="${d.firstName + ' ' + d.lastName + ' (' + d.staffRole + ')'}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Date &amp; Time <span class="text-danger">*</span></label>
+                        <input type="datetime-local" class="form-control" name="scheduledDateTime" required/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Appointment Type <span class="text-danger">*</span></label>
+                        <select class="form-select" name="appointmentType" required>
+                            <option th:each="t : ${appointmentTypes}" th:value="${t}" th:text="${t}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" name="notes" rows="2"
+                                  placeholder="Reason for visit or additional notes…"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-calendar-check me-2"></i>Book Appointment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Cancel Appointment Modal -->
+<div class="modal fade" id="cancelModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="bi bi-x-circle me-2"></i>Cancel Appointment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="cancelForm" method="post">
+                <div class="modal-body">
+                    <p>Cancelling appointment for: <strong id="cancelPatientName"></strong></p>
+                    <div class="mb-3">
+                        <label class="form-label">Reason for cancellation</label>
+                        <textarea class="form-control" name="reason" rows="2"
+                                  placeholder="Optional reason…"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Go back</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-circle me-2"></i>Confirm Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule / Reschedule Specialist Modal -->
+<div class="modal fade" id="scheduleSpecialistModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="specialistModalTitle">
+                    <i class="bi bi-calendar2-plus me-2 text-success"></i>Schedule Specialist Appointment
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="specialistForm" method="post">
+                <div class="modal-body">
+                    <!-- Hidden fields -->
+                    <input type="hidden" id="specialistDoctorId"  name="doctorId"/>
+                    <input type="hidden" id="specialistPatientId" name="patientId"/>
+                    <input type="hidden" id="specialistSourceId"  name="sourceAppointmentId"/>
+
+                    <!-- Specialist name (read-only) -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Specialist</label>
+                        <input type="text" class="form-control" id="specialistDoctorName" readonly/>
+                    </div>
+
+                    <!-- Date picker + View Schedule -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">View Schedule for Date</label>
+                        <div class="input-group">
+                            <input type="date" class="form-control" id="scheduleViewDate"
+                                   th:value="${#dates.format(#dates.createNow(), 'yyyy-MM-dd')}"/>
+                            <button type="button" class="btn btn-outline-secondary" onclick="loadSchedule()">
+                                <i class="bi bi-search me-1"></i>View Schedule
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Doctor's existing bookings for selected date -->
+                    <div id="scheduleSection" class="mb-3" style="display:none;">
+                        <label class="form-label fw-semibold">Doctor's Schedule</label>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Time</th><th>Patient</th><th>Type</th><th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="scheduleBody">
+                                    <tr><td colspan="4" class="text-center text-muted">Loading…</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Appointment date-time picker -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Appointment Date &amp; Time <span class="text-danger">*</span></label>
+                        <input type="datetime-local" class="form-control" id="specialistDateTime"
+                               name="scheduledDateTime" required/>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" name="notes" rows="2"
+                                  placeholder="Reason or additional notes…"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success" id="specialistSubmitBtn">
+                        <i class="bi bi-calendar-check me-2"></i>Confirm
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{receptionist/fragments :: scripts}"></th:block>
+<script th:inline="javascript">
+    const apptCancelBase    = /*[[@{/receptionist/appointments/}]]*/ '/receptionist/appointments/';
+    const scheduleBase      = /*[[@{/receptionist/appointments/schedule-specialist}]]*/ '/receptionist/appointments/schedule-specialist';
+    const rescheduleBase    = /*[[@{/receptionist/appointments/}]]*/ '/receptionist/appointments/';
+    const doctorScheduleBase = /*[[@{/receptionist/api/doctors/}]]*/ '/receptionist/api/doctors/';
+
+    function prepareCancel(btn) {
+        const id   = btn.getAttribute('data-appt-id');
+        const name = btn.getAttribute('data-appt-patient');
+        document.getElementById('cancelPatientName').textContent = name;
+        document.getElementById('cancelForm').action = apptCancelBase + id + '/cancel';
+    }
+
+    function prepareSpecialist(btn) {
+        const mode        = btn.getAttribute('data-mode');         // 'schedule' or 'reschedule'
+        const apptId      = btn.getAttribute('data-appt-id');
+        const doctorId    = btn.getAttribute('data-doctor-id');
+        const doctorName  = btn.getAttribute('data-doctor-name');
+        const patientId   = btn.getAttribute('data-patient-id');
+        const scheduledDt = btn.getAttribute('data-scheduled-dt'); // only for reschedule
+
+        // Reset schedule view
+        document.getElementById('scheduleSection').style.display = 'none';
+        document.getElementById('scheduleBody').innerHTML =
+            '<tr><td colspan="4" class="text-center text-muted">Loading…</td></tr>';
+
+        document.getElementById('specialistDoctorId').value    = doctorId;
+        document.getElementById('specialistPatientId').value   = patientId;
+        document.getElementById('specialistDoctorName').value  = doctorName;
+
+        if (mode === 'reschedule') {
+            document.getElementById('specialistModalTitle').innerHTML =
+                '<i class="bi bi-calendar2-week me-2 text-primary"></i>Reschedule Specialist Appointment';
+            document.getElementById('specialistSubmitBtn').textContent = 'Reschedule';
+            document.getElementById('specialistSourceId').value = '';
+            document.getElementById('specialistForm').action = rescheduleBase + apptId + '/reschedule';
+            // Pre-fill current date-time (strip seconds for datetime-local input)
+            if (scheduledDt) {
+                try {
+                    const dt = new Date(scheduledDt);
+                    const pad = n => String(n).padStart(2,'0');
+                    const formatted = dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate()) +
+                                      'T' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+                    document.getElementById('specialistDateTime').value = formatted;
+                    document.getElementById('scheduleViewDate').value =
+                        dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate());
+                } catch(e) {}
+            }
+        } else {
+            document.getElementById('specialistModalTitle').innerHTML =
+                '<i class="bi bi-calendar-plus me-2 text-success"></i>Schedule Specialist Appointment';
+            document.getElementById('specialistSubmitBtn').innerHTML =
+                '<i class="bi bi-calendar-check me-2"></i>Confirm';
+            document.getElementById('specialistSourceId').value = apptId;
+            document.getElementById('specialistForm').action = scheduleBase;
+            document.getElementById('specialistDateTime').value = '';
+            // Default view-schedule date to today
+            const today = new Date();
+            const pad = n => String(n).padStart(2,'0');
+            document.getElementById('scheduleViewDate').value =
+                today.getFullYear() + '-' + pad(today.getMonth()+1) + '-' + pad(today.getDate());
+        }
+
+        // Store doctorId on a data attribute for use in loadSchedule()
+        document.getElementById('specialistForm').dataset.doctorId = doctorId;
+    }
+
+    function loadSchedule() {
+        const doctorId = document.getElementById('specialistForm').dataset.doctorId;
+        const date     = document.getElementById('scheduleViewDate').value;
+        if (!doctorId || !date) return;
+
+        const tbody = document.getElementById('scheduleBody');
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Loading…</td></tr>';
+        document.getElementById('scheduleSection').style.display = 'block';
+
+        fetch(doctorScheduleBase + doctorId + '/schedule?date=' + date)
+            .then(r => r.json())
+            .then(slots => {
+                if (slots.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No appointments on this date.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = slots.map(s =>
+                    `<tr>
+                        <td>${s.time}</td>
+                        <td>${s.patient}</td>
+                        <td>${s.type}</td>
+                        <td>${s.status}</td>
+                    </tr>`
+                ).join('');
+            })
+            .catch(() => {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load schedule.</td></tr>';
+            });
+    }
+</script>
+</body>
+</html>

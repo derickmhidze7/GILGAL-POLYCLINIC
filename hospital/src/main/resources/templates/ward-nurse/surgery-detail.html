@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{ward-nurse/fragments :: head('Surgery Detail')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{ward-nurse/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{ward-nurse/fragments :: topbar('Surgery Detail')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{ward-nurse/fragments :: alerts}"></th:block>
+
+            <!-- Payment gate banner -->
+            <div th:if="${!surgery.invoicePaid}" class="alert alert-warning d-flex align-items-center mb-4">
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                <span><strong>Surgery fee unpaid.</strong> The surgery fee invoice has not been paid yet. You can still add pre-op/post-op items and send for payment — but completing, discharging, and post-op care require the fee to be paid first.</span>
+            </div>
+
+            <!-- Back + header -->
+            <div class="d-flex align-items-center gap-3 mb-4">
+                <a href="/ward-nurse/surgeries" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left me-1"></i>Back
+                </a>
+                <div>
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-scissors text-primary me-2"></i>
+                        <span th:text="${surgery.procedureName}">Procedure</span>
+                    </h5>
+                    <small class="text-muted" th:text="${surgery.patientName}">Patient</small>
+                </div>
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <span th:class="${surgery.status == 'COMPLETED' ? 'badge bg-success fs-6' :
+                                     (surgery.status == 'DISCHARGED' ? 'badge bg-info fs-6' :
+                                     (surgery.status == 'IN_PROGRESS' ? 'badge bg-warning text-dark fs-6' :
+                                     (surgery.status == 'CANCELLED' ? 'badge bg-danger fs-6' : 'badge bg-primary fs-6')))}"
+                          th:text="${surgery.status}">Status</span>
+                    <!-- Sent for Payment badge / button -->
+                    <span th:if="${surgery.sentForPayment}" class="badge bg-success fs-6">
+                        <i class="bi bi-check-circle me-1"></i>Sent for Payment
+                        <small class="ms-1 fw-normal"
+                               th:if="${surgery.sentForPaymentAt != null}"
+                               th:text="${#temporals.format(surgery.sentForPaymentAt,'dd MMM HH:mm')}"></small>
+                    </span>
+                    <form th:if="${!surgery.sentForPayment and surgery.status != 'DISCHARGED' and surgery.status != 'CANCELLED'}"
+                          th:action="@{/ward-nurse/surgeries/{id}/send-for-payment(id=${surgery.id})}"
+                          method="post" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-warning"
+                                onclick="return confirm('Send this surgery invoice to reception for payment collection?')">
+                            <i class="bi bi-send me-1"></i>Send for Payment
+                        </button>
+                    </form>
+                    <!-- Discharge button: visible only when COMPLETED -->
+                    <form th:if="${surgery.status == 'COMPLETED'}"
+                          th:action="@{/ward-nurse/surgeries/{id}/discharge(id=${surgery.id})}"
+                          method="post" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-info text-white"
+                                onclick="return confirm('Confirm patient discharge from surgery care?')">
+                            <i class="bi bi-box-arrow-right me-1"></i>Discharge Patient
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Summary card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="text-muted small">Patient</div>
+                            <div class="fw-semibold" th:text="${surgery.patientName}">—</div>
+                            <div class="text-muted small" th:text="${'NID: ' + surgery.patientMrn}">—</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small">Requesting Doctor</div>
+                            <div class="fw-semibold" th:text="${'Dr. ' + surgery.doctorName}">—</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small">Scheduled</div>
+                            <div class="fw-semibold"
+                                 th:text="${surgery.scheduledDate != null ? #temporals.format(surgery.scheduledDate,'dd MMM yyyy HH:mm') : 'TBD'}">—</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted small">Urgency</div>
+                            <span th:class="${surgery.urgency == 'EMERGENCY' ? 'badge bg-danger' :
+                                           (surgery.urgency == 'URGENT' ? 'badge bg-warning text-dark' : 'badge bg-success')}"
+                                  th:text="${surgery.urgency}">—</span>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted small">Anesthesia</div>
+                            <div th:text="${surgery.anesthesiaType ?: '—'}">—</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted small">Theater</div>
+                            <div th:text="${surgery.operatingTheater ?: '—'}">—</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted small">Consent</div>
+                            <span th:if="${surgery.consentObtained}" class="badge bg-success">Obtained</span>
+                            <span th:if="${!surgery.consentObtained}" class="badge bg-danger">Not Obtained</span>
+                        </div>
+                    </div>
+                    <div th:if="${surgery.preopNotes}" class="mt-3">
+                        <div class="text-muted small">Pre-op Instructions</div>
+                        <div class="border rounded p-2 bg-light" th:text="${surgery.preopNotes}">—</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Consent Document (read-only view for Ward Nurse) -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-file-earmark-text me-2"></i>Consent Document
+                </div>
+                <div class="card-body">
+                    <div th:if="${!surgery.invoicePaid}" class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Awaiting payment — consent document not yet available.
+                    </div>
+                    <div th:if="${surgery.invoicePaid and surgery.consentDocumentPath == null}" class="text-muted">
+                        <i class="bi bi-hourglass-split me-1"></i>
+                        Payment received. Consent document pending upload by the doctor.
+                    </div>
+                    <div th:if="${surgery.invoicePaid and surgery.consentDocumentPath != null}"
+                         class="d-flex align-items-center gap-3">
+                        <span class="text-success fw-semibold">
+                            <i class="bi bi-file-earmark-check-fill me-1"></i>Consent document on file
+                        </span>
+                        <a th:href="@{/ward-nurse/surgeries/{id}/consent-download(id=${surgery.id})}"
+                           class="btn btn-outline-primary btn-sm" target="_blank">
+                            <i class="bi bi-eye me-1"></i>View / Download
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <ul class="nav nav-tabs mb-3">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#tabNurses">Assigned Team</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tabPreop">Pre-op Items
+                        <span th:if="${!#lists.isEmpty(surgery.preopItems)}"
+                              class="badge bg-secondary ms-1"
+                              th:text="${#lists.size(surgery.preopItems)}">0</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tabIntraop">Intraoperative</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tabPostopItems">Post-op Items
+                        <span th:if="${!#lists.isEmpty(surgery.postopItems)}"
+                              class="badge bg-secondary ms-1"
+                              th:text="${#lists.size(surgery.postopItems)}">0</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tabPostopCare">Post-op Care
+                        <span th:if="${!#lists.isEmpty(surgery.postopCareRecords)}"
+                              class="badge bg-secondary ms-1"
+                              th:text="${#lists.size(surgery.postopCareRecords)}">0</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tabRecordPostop">Record Post-op</a>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+                <!-- Assigned Team -->
+                <div class="tab-pane fade show active" id="tabNurses">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div th:if="${#lists.isEmpty(surgery.nurses)}" class="text-muted">
+                                No nurses formally assigned.
+                            </div>
+                            <div class="row g-2" th:if="${!#lists.isEmpty(surgery.nurses)}">
+                                <div class="col-md-3" th:each="n : ${surgery.nurses}">
+                                    <div class="card border shadow-sm">
+                                        <div class="card-body py-2 px-3">
+                                            <div class="fw-semibold" th:text="${n.nurseName}">—</div>
+                                            <small class="text-muted" th:text="${n.role}">—</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pre-op Items -->
+                <div class="tab-pane fade" id="tabPreop">
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-list-check me-2 text-primary"></i>Pre-op Items</span>
+                            <span th:if="${surgery.sentForPayment}" class="badge bg-success">
+                                <i class="bi bi-check-circle me-1"></i>Sent for Payment
+                                <small th:if="${surgery.sentForPaymentAt != null}"
+                                       th:text="${#temporals.format(surgery.sentForPaymentAt,'dd MMM HH:mm')}"></small>
+                            </span>
+                            <form th:if="${!surgery.sentForPayment and surgery.status != 'DISCHARGED' and surgery.status != 'CANCELLED'}"
+                                  th:action="@{/ward-nurse/surgeries/{id}/send-for-payment(id=${surgery.id})}"
+                                  method="post" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-warning"
+                                        onclick="return confirm('Send this surgery invoice to reception for payment collection?')">
+                                    <i class="bi bi-send me-1"></i>Send to Receptionist
+                                </button>
+                            </form>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${#lists.isEmpty(surgery.preopItems)}" class="text-muted mb-3">
+                                No pre-op items added yet.
+                            </div>
+                            <table th:if="${!#lists.isEmpty(surgery.preopItems)}"
+                                   class="table table-sm align-middle mb-3">
+                                <thead class="table-light">
+                                    <tr><th>Item</th><th>Qty</th><th>Route</th><th>Dosage</th><th>Price (TZS)</th><th>Payment</th><th>Dispensed</th><th>Notes</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="item : ${surgery.preopItems}">
+                                        <td th:text="${item.itemName}">—</td>
+                                        <td th:text="${item.quantity}">—</td>
+                                        <td th:text="${item.route ?: '—'}">—</td>
+                                        <td>
+                                            <span th:if="${item.dosesPerDay != null}"
+                                                  th:text="${item.dosesPerDay + '×' + item.quantityPerDose + ' for ' + item.numberOfDays + 'd'}">—</span>
+                                            <span th:if="${item.dosesPerDay == null and item.dispenseAsWhole}"
+                                                  th:text="'Whole ×' + ${item.quantity}">—</span>
+                                            <span th:if="${item.dosesPerDay == null and !item.dispenseAsWhole}"
+                                                  th:text="${item.quantity + ' unit(s)'}">—</span>
+                                        </td>
+                                        <td th:text="${item.price}">—</td>
+                                        <td>
+                                            <span th:if="${item.labItem}" class="badge bg-info text-dark me-1">Lab</span>
+                                            <span th:if="${item.paid}" class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Paid</span>
+                                            <span th:unless="${item.paid}" class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Unpaid</span>
+                                        </td>
+                                        <td>
+                                            <span th:if="${item.dispensed}" class="badge bg-success">Yes</span>
+                                            <span th:if="${!item.dispensed}" class="badge bg-secondary">No</span>
+                                        </td>
+                                        <td th:text="${item.pharmacyNotes ?: '—'}">—</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <!-- Add forms -->
+                            <div th:if="${surgery.status != 'CANCELLED' and surgery.status != 'COMPLETED' and surgery.status != 'DISCHARGED'}">
+                                <hr class="my-3"/>
+                                <!-- Pharmacy Item -->
+                                <p class="fw-semibold mb-2"><i class="bi bi-capsule me-1 text-primary"></i>Add Pharmacy Item</p>
+                                <form th:action="@{/ward-nurse/surgeries/{id}/item(id=${surgery.id})}"
+                                      method="post" class="mb-3" onsubmit="return ensureNurseItemName('preop')">
+                                    <input type="hidden" name="itemType" value="PRE_OP"/>
+                                    <input type="hidden" name="itemName"        id="nursePreopItemName"/>
+                                    <input type="hidden" name="quantity"        id="nursePreopQtyHidden" value="1"/>
+                                    <input type="hidden" name="dispenseAsWhole" id="nursePreopDispenseWholeHidden" value="false"/>
+                                    <input type="hidden" name="dosesPerDay"    id="nursePreopDosesPerDayHidden"/>
+                                    <input type="hidden" name="quantityPerDose" id="nursePreopQtyPerDoseHidden"/>
+                                    <input type="hidden" name="numberOfDays"   id="nursePreopNumDaysHidden"/>
+
+                                    <!-- Drug search -->
+                                    <div class="mb-2 position-relative">
+                                        <label class="form-label small fw-semibold">Medication <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                                            <input type="text" id="nursePreopSearch" class="form-control border-start-0"
+                                                   autocomplete="off" placeholder="Type to search pharmacy catalogue…"
+                                                   oninput="pharmacyAutoSearch('nursePreopSearch','nursePreopItemName','nursePreopPrice','nursePreopDropdown','/ward-nurse/api/pharmacy-search')"/>
+                                        </div>
+                                        <div id="nursePreopDropdown" class="list-group shadow position-absolute"
+                                             style="display:none; z-index:1055; width:100%; max-height:220px; overflow-y:auto;"></div>
+                                        <div class="form-text" id="nursePreopPriceHint"></div>
+                                    </div>
+
+                                    <!-- Dispense toggle -->
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="nursePreopDispenseWhole"
+                                               onchange="toggleNurseMode('preop')"/>
+                                        <label class="form-check-label fw-semibold small" for="nursePreopDispenseWhole">
+                                            Dispense as a whole unit
+                                            <span class="text-muted fw-normal">(e.g. bottle, vial, pack)</span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Mode A: Standard dosage -->
+                                    <div id="nursePreopModeStandard" class="row g-2 mb-2">
+                                        <div class="col-4">
+                                            <label class="form-label small fw-semibold">Doses/day <span class="text-danger">*</span></label>
+                                            <input type="number" id="nursePreopDosesDay" class="form-control form-control-sm"
+                                                   min="1" placeholder="e.g. 2" oninput="updateNursePreview('preop')"/>
+                                            <div class="form-text">Times per day</div>
+                                        </div>
+                                        <div class="col-4">
+                                            <label class="form-label small fw-semibold">Qty/dose <span class="text-danger">*</span></label>
+                                            <input type="number" id="nursePreopQtyDose" class="form-control form-control-sm"
+                                                   min="1" placeholder="e.g. 1" oninput="updateNursePreview('preop')"/>
+                                            <div class="form-text">Per dose</div>
+                                        </div>
+                                        <div class="col-4">
+                                            <label class="form-label small fw-semibold">Days <span class="text-danger">*</span></label>
+                                            <input type="number" id="nursePreopNumDays" class="form-control form-control-sm"
+                                                   min="1" placeholder="e.g. 5" oninput="updateNursePreview('preop')"/>
+                                            <div class="form-text">Duration</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Mode B: Whole unit -->
+                                    <div id="nursePreopModeWhole" class="row g-2 mb-2 d-none">
+                                        <div class="col-4">
+                                            <label class="form-label small fw-semibold">Quantity <span class="text-danger">*</span></label>
+                                            <input type="number" id="nursePreopWholeQty" class="form-control form-control-sm"
+                                                   min="1" placeholder="e.g. 2" oninput="updateNursePreview('preop')"/>
+                                            <div class="form-text">Units to dispense</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Live preview -->
+                                    <div id="nursePreopPreview" class="badge bg-success-subtle text-success-emphasis mb-2 d-none fs-6 fw-normal"></div>
+
+                                    <!-- Route + Instructions + Price -->
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-md-3">
+                                            <label class="form-label small fw-semibold">Route</label>
+                                            <select name="route" id="nursePreopRoute" class="form-select form-select-sm">
+                                                <option value="ORAL">Oral</option>
+                                                <option value="IV">IV</option>
+                                                <option value="IM">IM</option>
+                                                <option value="TOPICAL">Topical</option>
+                                                <option value="INHALATION">Inhalation</option>
+                                                <option value="SUBLINGUAL">Sublingual</option>
+                                                <option value="RECTAL">Rectal</option>
+                                                <option value="OTHER">Other</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label small fw-semibold">Special Instructions</label>
+                                            <input type="text" name="instructions" class="form-control form-control-sm"
+                                                   placeholder="e.g. Take after meals…"/>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small fw-semibold">Price (TZS)</label>
+                                            <input type="number" name="price" id="nursePreopPrice" class="form-control form-control-sm"
+                                                   placeholder="Auto-filled" step="0.01" min="0" readonly/>
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button type="submit" class="btn btn-primary w-100">
+                                                <i class="bi bi-plus-circle me-1"></i>Add
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                                <!-- Lab Test -->
+                                <p class="fw-semibold mb-2"><i class="bi bi-flask me-1 text-info"></i>Add Lab Test</p>
+                                <form th:action="@{/ward-nurse/surgeries/{id}/lab-item(id=${surgery.id})}"
+                                      method="post" class="row g-2 align-items-end">
+                                    <input type="hidden" name="itemType" value="PRE_OP"/>
+                                    <input type="hidden" name="testCode" id="nursePreopLabTestCode"/>
+                                    <div class="col-md-5 position-relative">
+                                        <label class="form-label small mb-1">Lab Test</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                                            <input type="text" id="nursePreopLabSearch" class="form-control border-start-0"
+                                                   autocomplete="off" placeholder="Type to search lab tests…"
+                                                   oninput="labAutoSearch('nursePreopLabSearch','nursePreopLabItemName','nursePreopLabPrice','nursePreopLabTestCode','nursePreopLabDropdown','/ward-nurse/api/lab-search')"/>
+                                        </div>
+                                        <input type="hidden" name="itemName" id="nursePreopLabItemName"/>
+                                        <div id="nursePreopLabDropdown" class="list-group shadow position-absolute"
+                                             style="display:none; z-index:1055; width:100%; max-height:220px; overflow-y:auto;"></div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small mb-1">Qty</label>
+                                        <input type="number" name="quantity" class="form-control" value="1" min="1" required/>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Price (TZS)</label>
+                                        <input type="number" name="price" id="nursePreopLabPrice" class="form-control"
+                                               placeholder="Auto-filled or manual" step="0.01" min="0"/>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="submit" class="btn btn-info text-white w-100">
+                                            <i class="bi bi-plus-circle me-1"></i>Add
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Intraoperative -->
+                <div class="tab-pane fade" id="tabIntraop">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white fw-semibold">
+                            <i class="bi bi-activity me-2 text-danger"></i>Intraoperative Record
+                        </div>
+                        <div class="card-body">
+                            <!-- View existing -->
+                            <div th:if="${surgery.intraoperative != null}" class="mb-4">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-4">
+                                        <div class="text-muted small">Lead Surgeon</div>
+                                        <div class="fw-semibold" th:text="${surgery.intraoperative.leadSurgeon ?: '—'}">—</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="text-muted small">Anesthesiologist</div>
+                                        <div class="fw-semibold" th:text="${surgery.intraoperative.anesthesiologist ?: '—'}">—</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="text-muted small">Time</div>
+                                        <div class="fw-semibold"
+                                             th:text="${(surgery.intraoperative.startTime != null ? #temporals.format(surgery.intraoperative.startTime,'HH:mm') : '?') + ' — ' + (surgery.intraoperative.endTime != null ? #temporals.format(surgery.intraoperative.endTime,'HH:mm') : '?')}">—</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-muted small">Blood Loss</div>
+                                        <div th:text="${surgery.intraoperative.bloodLossMl != null ? surgery.intraoperative.bloodLossMl + ' mL' : '—'}">—</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-muted small">Fluids Given</div>
+                                        <div th:text="${surgery.intraoperative.fluidsGivenMl != null ? surgery.intraoperative.fluidsGivenMl + ' mL' : '—'}">—</div>
+                                    </div>
+                                    <div class="col-12" th:if="${surgery.intraoperative.complications}">
+                                        <div class="text-muted small">Complications</div>
+                                        <div class="alert alert-danger py-2" th:text="${surgery.intraoperative.complications}">—</div>
+                                    </div>
+                                    <div class="col-12" th:if="${surgery.intraoperative.intraopNotes}">
+                                        <div class="text-muted small">Notes</div>
+                                        <div class="border rounded p-2 bg-light" th:text="${surgery.intraoperative.intraopNotes}">—</div>
+                                    </div>
+                                </div>
+                                <hr/>
+                            </div>
+                            <!-- Entry / Update form -->
+                            <div th:if="${surgery.status == 'CANCELLED' or surgery.status == 'DISCHARGED'}">
+                                <div class="alert alert-secondary mb-0"
+                                     th:text="${surgery.status == 'DISCHARGED' ? 'Patient has been discharged — intraoperative record is read-only.' : 'Surgery cancelled — cannot edit intraoperative record.'}">—</div>
+                            </div>
+                            <form th:if="${surgery.invoicePaid and surgery.status != 'CANCELLED' and surgery.status != 'DISCHARGED'}"
+                                  th:action="@{/ward-nurse/surgeries/{id}/intraop(id=${surgery.id})}"
+                                  method="post">
+                                <p class="fw-semibold mb-3"
+                                   th:text="${surgery.intraoperative != null ? 'Update Intraoperative Record' : 'Enter Intraoperative Record'}">
+                                    Enter Intraoperative Record
+                                </p>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Lead Surgeon</label>
+                                        <input type="text" name="leadSurgeon" class="form-control"
+                                               placeholder="Name of lead surgeon"
+                                               th:value="${surgery.intraoperative?.leadSurgeon}"/>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Anesthesiologist</label>
+                                        <input type="text" name="anesthesiologist" class="form-control"
+                                               placeholder="Name of anesthesiologist"
+                                               th:value="${surgery.intraoperative?.anesthesiologist}"/>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Start Time</label>
+                                        <input type="datetime-local" name="startTime" class="form-control"
+                                               th:value="${surgery.intraoperative?.startTime != null ? #temporals.format(surgery.intraoperative.startTime,'yyyy-MM-dd''T''HH:mm') : ''}"/>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">End Time</label>
+                                        <input type="datetime-local" name="endTime" class="form-control"
+                                               th:value="${surgery.intraoperative?.endTime != null ? #temporals.format(surgery.intraoperative.endTime,'yyyy-MM-dd''T''HH:mm') : ''}"/>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Blood Loss (mL)</label>
+                                        <input type="number" name="bloodLossMl" class="form-control"
+                                               min="0" placeholder="e.g. 150"
+                                               th:value="${surgery.intraoperative?.bloodLossMl}"/>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Fluids Given (mL)</label>
+                                        <input type="number" name="fluidsGivenMl" class="form-control"
+                                               min="0" placeholder="e.g. 1000"
+                                               th:value="${surgery.intraoperative?.fluidsGivenMl}"/>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold">Complications</label>
+                                        <textarea name="complications" rows="2" class="form-control"
+                                                  placeholder="Any intraoperative complications..."
+                                                  th:text="${surgery.intraoperative?.complications}"></textarea>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold">Intraoperative Notes</label>
+                                        <textarea name="intraopNotes" rows="3" class="form-control"
+                                                  placeholder="Procedure notes, observations..."
+                                                  th:text="${surgery.intraoperative?.intraopNotes}"></textarea>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold">Anesthesia Notes</label>
+                                        <textarea name="anesthesiaNotes" rows="2" class="form-control"
+                                                  placeholder="Anesthesia observations..."
+                                                  th:text="${surgery.intraoperative?.anesthesiaNotes}"></textarea>
+                                    </div>
+                                    <div class="col-12">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-save me-1"></i>Save Intraoperative Record
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Post-op Items -->
+                <div class="tab-pane fade" id="tabPostopItems">
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-list-check me-2 text-success"></i>Post-op Items</span>
+                            <span th:if="${surgery.sentForPayment}" class="badge bg-success">
+                                <i class="bi bi-check-circle me-1"></i>Sent for Payment
+                                <small th:if="${surgery.sentForPaymentAt != null}"
+                                       th:text="${#temporals.format(surgery.sentForPaymentAt,'dd MMM HH:mm')}"></small>
+                            </span>
+                            <form th:if="${!surgery.sentForPayment and surgery.status != 'DISCHARGED' and surgery.status != 'CANCELLED'}"
+                                  th:action="@{/ward-nurse/surgeries/{id}/send-for-payment(id=${surgery.id})}"
+                                  method="post" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-warning"
+                                        onclick="return confirm('Send this surgery invoice to reception for payment collection?')">
+                                    <i class="bi bi-send me-1"></i>Send to Receptionist
+                                </button>
+                            </form>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${#lists.isEmpty(surgery.postopItems)}" class="text-muted mb-3">
+                                No post-op items added yet.
+                            </div>
+                            <table th:if="${!#lists.isEmpty(surgery.postopItems)}"
+                                   class="table table-sm align-middle mb-3">
+                                <thead class="table-light">
+                                    <tr><th>Item</th><th>Qty</th><th>Route</th><th>Dosage</th><th>Price (TZS)</th><th>Payment</th><th>Dispensed</th><th>Notes</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="item : ${surgery.postopItems}">
+                                        <td th:text="${item.itemName}">—</td>
+                                        <td th:text="${item.quantity}">—</td>
+                                        <td th:text="${item.route ?: '—'}">—</td>
+                                        <td>
+                                            <span th:if="${item.dosesPerDay != null}"
+                                                  th:text="${item.dosesPerDay + '×' + item.quantityPerDose + ' for ' + item.numberOfDays + 'd'}">—</span>
+                                            <span th:if="${item.dosesPerDay == null and item.dispenseAsWhole}"
+                                                  th:text="'Whole ×' + ${item.quantity}">—</span>
+                                            <span th:if="${item.dosesPerDay == null and !item.dispenseAsWhole}"
+                                                  th:text="${item.quantity + ' unit(s)'}">—</span>
+                                        </td>
+                                        <td th:text="${item.price}">—</td>
+                                        <td>
+                                            <span th:if="${item.labItem}" class="badge bg-info text-dark me-1">Lab</span>
+                                            <span th:if="${item.paid}" class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Paid</span>
+                                            <span th:unless="${item.paid}" class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Unpaid</span>
+                                        </td>
+                                        <td>
+                                            <span th:if="${item.dispensed}" class="badge bg-success">Yes</span>
+                                            <span th:if="${!item.dispensed}" class="badge bg-secondary">No</span>
+                                        </td>
+                                        <td th:text="${item.pharmacyNotes ?: '—'}">—</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <!-- Add forms -->
+                            <div th:if="${surgery.status != 'CANCELLED' and surgery.status != 'DISCHARGED'}">
+                                <hr class="my-3"/>
+                                <!-- Pharmacy Item -->
+                                <p class="fw-semibold mb-2"><i class="bi bi-capsule me-1 text-success"></i>Add Pharmacy Item</p>
+                                <form th:action="@{/ward-nurse/surgeries/{id}/item(id=${surgery.id})}"
+                                      method="post" class="mb-3" onsubmit="return ensureNurseItemName('postop')">
+                                    <input type="hidden" name="itemType" value="POST_OP"/>
+                                    <input type="hidden" name="itemName"        id="nursePostopItemName"/>
+                                    <input type="hidden" name="quantity"        id="nursePostopQtyHidden" value="1"/>
+                                    <input type="hidden" name="dispenseAsWhole" id="nursePostopDispenseWholeHidden" value="false"/>
+                                    <input type="hidden" name="dosesPerDay"    id="nursePostopDosesPerDayHidden"/>
+                                    <input type="hidden" name="quantityPerDose" id="nursePostopQtyPerDoseHidden"/>
+                                    <input type="hidden" name="numberOfDays"   id="nursePostopNumDaysHidden"/>
+
+                                    <!-- Drug search -->
+                                    <div class="mb-2 position-relative">
+                                        <label class="form-label small fw-semibold">Medication <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                                            <input type="text" id="nursePostopSearch" class="form-control border-start-0"
+                                                   autocomplete="off" placeholder="Type to search pharmacy catalogue…"
+                                                   oninput="pharmacyAutoSearch('nursePostopSearch','nursePostopItemName','nursePostopPrice','nursePostopDropdown','/ward-nurse/api/pharmacy-search')"/>
+                                        </div>
+                                        <div id="nursePostopDropdown" class="list-group shadow position-absolute"
+                                             style="display:none; z-index:1055; width:100%; max-height:220px; overflow-y:auto;"></div>
+                                        <div class="form-text" id="nursePostopPriceHint"></div>
+                                    </div>
+
+                                    <!-- Dispense toggle -->
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="nursePostopDispenseWhole"
+                                               onchange="toggleNurseMode('postop')"/>
+                                        <label class="form-check-label fw-semibold small" for="nursePostopDispenseWhole">
+                                            Dispense as a whole unit
+                                            <span class="text-muted fw-normal">(e.g. bottle, vial, pack)</span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Mode A: Standard dosage -->
+                                    <div id="nursePostopModeStandard" class="row g-2 mb-2">
+                                        <div class="col-4">
+                                            <label class="form-label small fw-semibold">Doses/day <span class="text-danger">*</span></label>
+                                            <input type="number" id="nursePostopDosesDay" class="form-control form-control-sm"
+                                                   min="1" placeholder="e.g. 2" oninput="updateNursePreview('postop')"/>
+                                            <div class="form-text">Times per day</div>
+                                        </div>
+                                        <div class="col-4">
+                                            <label class="form-label small fw-semibold">Qty/dose <span class="text-danger">*</span></label>
+                                            <input type="number" id="nursePostopQtyDose" class="form-control form-control-sm"
+                                                   min="1" placeholder="e.g. 1" oninput="updateNursePreview('postop')"/>
+                                            <div class="form-text">Per dose</div>
+                                        </div>
+                                        <div class="col-4">
+                                            <label class="form-label small fw-semibold">Days <span class="text-danger">*</span></label>
+                                            <input type="number" id="nursePostopNumDays" class="form-control form-control-sm"
+                                                   min="1" placeholder="e.g. 5" oninput="updateNursePreview('postop')"/>
+                                            <div class="form-text">Duration</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Mode B: Whole unit -->
+                                    <div id="nursePostopModeWhole" class="row g-2 mb-2 d-none">
+                                        <div class="col-4">
+                                            <label class="form-label small fw-semibold">Quantity <span class="text-danger">*</span></label>
+                                            <input type="number" id="nursePostopWholeQty" class="form-control form-control-sm"
+                                                   min="1" placeholder="e.g. 2" oninput="updateNursePreview('postop')"/>
+                                            <div class="form-text">Units to dispense</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Live preview -->
+                                    <div id="nursePostopPreview" class="badge bg-success-subtle text-success-emphasis mb-2 d-none fs-6 fw-normal"></div>
+
+                                    <!-- Route + Instructions + Price -->
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-md-3">
+                                            <label class="form-label small fw-semibold">Route</label>
+                                            <select name="route" id="nursePostopRoute" class="form-select form-select-sm">
+                                                <option value="ORAL">Oral</option>
+                                                <option value="IV">IV</option>
+                                                <option value="IM">IM</option>
+                                                <option value="TOPICAL">Topical</option>
+                                                <option value="INHALATION">Inhalation</option>
+                                                <option value="SUBLINGUAL">Sublingual</option>
+                                                <option value="RECTAL">Rectal</option>
+                                                <option value="OTHER">Other</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label small fw-semibold">Special Instructions</label>
+                                            <input type="text" name="instructions" class="form-control form-control-sm"
+                                                   placeholder="e.g. Take after meals…"/>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small fw-semibold">Price (TZS)</label>
+                                            <input type="number" name="price" id="nursePostopPrice" class="form-control form-control-sm"
+                                                   placeholder="Auto-filled" step="0.01" min="0" readonly/>
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button type="submit" class="btn btn-success w-100">
+                                                <i class="bi bi-plus-circle me-1"></i>Add
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                                <!-- Lab Test -->
+                                <p class="fw-semibold mb-2"><i class="bi bi-flask me-1 text-info"></i>Add Lab Test</p>
+                                <form th:action="@{/ward-nurse/surgeries/{id}/lab-item(id=${surgery.id})}"
+                                      method="post" class="row g-2 align-items-end">
+                                    <input type="hidden" name="itemType" value="POST_OP"/>
+                                    <input type="hidden" name="testCode" id="nursePostopLabTestCode"/>
+                                    <div class="col-md-5 position-relative">
+                                        <label class="form-label small mb-1">Lab Test</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                                            <input type="text" id="nursePostopLabSearch" class="form-control border-start-0"
+                                                   autocomplete="off" placeholder="Type to search lab tests…"
+                                                   oninput="labAutoSearch('nursePostopLabSearch','nursePostopLabItemName','nursePostopLabPrice','nursePostopLabTestCode','nursePostopLabDropdown','/ward-nurse/api/lab-search')"/>
+                                        </div>
+                                        <input type="hidden" name="itemName" id="nursePostopLabItemName"/>
+                                        <div id="nursePostopLabDropdown" class="list-group shadow position-absolute"
+                                             style="display:none; z-index:1055; width:100%; max-height:220px; overflow-y:auto;"></div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small mb-1">Qty</label>
+                                        <input type="number" name="quantity" class="form-control" value="1" min="1" required/>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Price (TZS)</label>
+                                        <input type="number" name="price" id="nursePostopLabPrice" class="form-control"
+                                               placeholder="Auto-filled or manual" step="0.01" min="0"/>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="submit" class="btn btn-info text-white w-100">
+                                            <i class="bi bi-plus-circle me-1"></i>Add
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Post-op Care History -->
+                <div class="tab-pane fade" id="tabPostopCare">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div th:if="${#lists.isEmpty(surgery.postopCareRecords)}" class="text-muted">
+                                No post-op care records yet. Use the "Record Post-op" tab.
+                            </div>
+                            <div th:each="c : ${surgery.postopCareRecords}" class="card border mb-3">
+                                <div th:with="isDoc=${c.recordedByRole == 'DOCTOR' or c.recordedByRole == 'SPECIALIST_DOCTOR'}"
+                                     th:class="${isDoc} ? 'card-header py-2 bg-primary-subtle d-flex justify-content-between align-items-center' : 'card-header py-2 bg-success-subtle d-flex justify-content-between align-items-center'">
+                                    <strong th:text="${#temporals.format(c.recordedAt,'dd MMM yyyy HH:mm')}">—</strong>
+                                    <span>
+                                        <span th:if="${c.recordedByRole == 'DOCTOR' or c.recordedByRole == 'SPECIALIST_DOCTOR'}"
+                                              class="badge bg-primary me-1"><i class="bi bi-person-badge me-1"></i>Doctor</span>
+                                        <span th:unless="${c.recordedByRole == 'DOCTOR' or c.recordedByRole == 'SPECIALIST_DOCTOR'}"
+                                              class="badge bg-success me-1"><i class="bi bi-heart-pulse me-1"></i>Nurse</span>
+                                        <span class="text-muted small" th:text="${c.nurseName}">—</span>
+                                    </span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-2">
+                                        <div class="col-md-2">
+                                            <small class="text-muted d-block">BP</small>
+                                            <strong th:text="${c.bloodPressure ?: '—'}">—</strong>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <small class="text-muted d-block">Pulse</small>
+                                            <strong th:text="${c.pulseRate ?: '—'}">—</strong>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <small class="text-muted d-block">SpO2</small>
+                                            <strong th:text="${c.spo2 != null ? c.spo2 + '%' : '—'}">—</strong>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <small class="text-muted d-block">Temp (°C)</small>
+                                            <strong th:text="${c.temperature ?: '—'}">—</strong>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <small class="text-muted d-block">Pain</small>
+                                            <strong th:text="${c.painScore ?: '—'}">—</strong>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <small class="text-muted d-block">Consciousness</small>
+                                            <strong th:text="${c.consciousnessLevel ?: '—'}">—</strong>
+                                        </div>
+                                        <div class="col-12" th:if="${c.recoveryNotes}">
+                                            <small class="text-muted d-block">Notes</small>
+                                            <span th:text="${c.recoveryNotes}">—</span>
+                                        </div>
+                                        <div class="col-12" th:if="${c.nextStep}">
+                                            <small class="text-muted d-block">Next Step</small>
+                                            <span class="badge bg-info text-dark" th:text="${c.nextStep}">—</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Record Post-op Care form -->
+                <div class="tab-pane fade" id="tabRecordPostop">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white border-bottom fw-semibold">
+                            <i class="bi bi-clipboard-pulse me-2 text-primary"></i>Record Post-op Observations
+                            <small class="text-muted fw-normal ms-2">(each entry is saved separately — existing records are never overwritten)</small>
+                        </div>
+                        <div class="card-body" th:if="${surgery.status == 'CANCELLED' or surgery.status == 'DISCHARGED'}">
+                            <div class="alert alert-secondary mb-0"
+                                 th:text="${surgery.status == 'DISCHARGED' ? 'Patient has been discharged — no further post-op care entries.' : 'This surgery is cancelled — no post-op care can be recorded.'}">—</div>
+                        </div>
+                        <div class="card-body" th:if="${surgery.invoicePaid and surgery.status != 'CANCELLED' and surgery.status != 'DISCHARGED'}">
+                            <form th:action="@{/ward-nurse/surgeries/{id}/postop(id=${surgery.id})}" method="post">
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-semibold">Blood Pressure</label>
+                                        <input type="text" name="bloodPressure" class="form-control"
+                                               placeholder="e.g. 120/80"/>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-semibold">Pulse Rate (bpm)</label>
+                                        <input type="number" name="pulseRate" class="form-control"
+                                               min="20" max="300" placeholder="e.g. 72"/>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-semibold">SpO2 (%)</label>
+                                        <input type="number" name="spo2" class="form-control"
+                                               step="0.1" min="50" max="100" placeholder="e.g. 98"/>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-semibold">Temperature (°C)</label>
+                                        <input type="number" name="temperature" class="form-control"
+                                               step="0.1" min="30" max="45" placeholder="e.g. 36.8"/>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-semibold">Pain Score (0-10)</label>
+                                        <input type="number" name="painScore" class="form-control"
+                                               min="0" max="10" placeholder="0-10"/>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Consciousness Level</label>
+                                        <select name="consciousnessLevel" class="form-select">
+                                            <option value="">— Select —</option>
+                                            <option value="ALERT">Alert</option>
+                                            <option value="DROWSY">Drowsy</option>
+                                            <option value="CONFUSED">Confused</option>
+                                            <option value="UNCONSCIOUS">Unconscious</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label fw-semibold">Next Step</label>
+                                        <select name="nextStep" class="form-select">
+                                            <option value="">— Select —</option>
+                                            <option value="WARD_TRANSFER">Transfer to Ward</option>
+                                            <option value="ICU">Transfer to ICU</option>
+                                            <option value="DISCHARGE_PREPARATION">Prepare for Discharge</option>
+                                            <option value="MONITOR">Continue Monitoring</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold">Recovery Notes</label>
+                                        <textarea name="recoveryNotes" rows="3" class="form-control"
+                                                  placeholder="Observations, patient response, any concerns..."></textarea>
+                                    </div>
+                                    <div class="col-12">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-save me-1"></i>Save Post-op Record
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{ward-nurse/fragments :: scripts}"></th:block>
+<script>
+    // Activate tab from URL hash on page load
+    (function () {
+        var hash = window.location.hash;
+        if (hash) {
+            var tab = document.querySelector('a[href="' + hash + '"]');
+            if (tab) { new bootstrap.Tab(tab).show(); }
+        }
+        // Update URL hash when tab changes
+        document.querySelectorAll('a[data-bs-toggle="tab"]').forEach(function (el) {
+            el.addEventListener('shown.bs.tab', function (e) {
+                history.replaceState(null, null, e.target.getAttribute('href'));
+            });
+        });
+    })();
+</script>
+
+<script>
+    // Pharmacy live search
+    const pharmResults = {};
+    function pharmacyAutoSearch(searchId, hiddenId, priceId, dropdownId, apiUrl) {
+        const q = document.getElementById(searchId).value.trim();
+        const dropdown = document.getElementById(dropdownId);
+        document.getElementById(hiddenId).value = '';
+        if (q.length < 2) { dropdown.style.display = 'none'; return; }
+        fetch(apiUrl + '?q=' + encodeURIComponent(q))
+            .then(r => r.json())
+            .then(data => {
+                pharmResults[dropdownId] = data;
+                if (!data.length) {
+                    dropdown.innerHTML = '<div class="list-group-item text-muted small py-2">No items found. You may enter a custom name.</div>';
+                    dropdown.style.display = 'block'; return;
+                }
+                dropdown.innerHTML = data.map((item, idx) =>
+                    '<button type="button" class="list-group-item list-group-item-action py-2 px-3 d-flex justify-content-between align-items-center" ' +
+                    'onclick="pickPharmacyItem(\'' + searchId + '\',\'' + hiddenId + '\',\'' + priceId + '\',\'' + dropdownId + '\',' + idx + ')">' +
+                    '<span>' + item.name + (item.category ? ' <small class="text-muted">' + item.category + '</small>' : '') + '</span>' +
+                    '<span class="text-success fw-semibold text-nowrap">TZSh ' +
+                    (item.unitCost && parseFloat(item.unitCost) > 0 ? parseFloat(item.unitCost).toLocaleString() : '—') +
+                    '</span></button>'
+                ).join('');
+                dropdown.style.display = 'block';
+            }).catch(() => { dropdown.style.display = 'none'; });
+    }
+    function pickPharmacyItem(searchId, hiddenId, priceId, dropdownId, idx) {
+        const item = (pharmResults[dropdownId] || [])[idx];
+        if (!item) return;
+        document.getElementById(searchId).value = item.name;
+        document.getElementById(hiddenId).value = item.name;
+        if (item.unitCost && parseFloat(item.unitCost) > 0) {
+            document.getElementById(priceId).value = parseFloat(item.unitCost).toFixed(2);
+            // Show price hint if present
+            const hintId = priceId.replace('Price', 'PriceHint');
+            const hint = document.getElementById(hintId);
+            if (hint) hint.textContent = 'Unit cost: TZSh ' + parseFloat(item.unitCost).toLocaleString();
+        }
+        document.getElementById(dropdownId).style.display = 'none';
+    }
+
+    // Lab live search
+    const labResults = {};
+    function labAutoSearch(searchId, hiddenId, priceId, codeId, dropdownId, apiUrl) {
+        const q = document.getElementById(searchId).value.trim();
+        const dropdown = document.getElementById(dropdownId);
+        document.getElementById(hiddenId).value = '';
+        if (codeId) document.getElementById(codeId).value = '';
+        if (q.length < 2) { dropdown.style.display = 'none'; return; }
+        fetch(apiUrl + '?q=' + encodeURIComponent(q))
+            .then(r => r.json())
+            .then(data => {
+                labResults[dropdownId] = data;
+                if (!data.length) {
+                    dropdown.innerHTML = '<div class="list-group-item text-muted small py-2">No lab tests found.</div>';
+                    dropdown.style.display = 'block'; return;
+                }
+                dropdown.innerHTML = data.map((item, idx) =>
+                    '<button type="button" class="list-group-item list-group-item-action py-2 px-3 d-flex justify-content-between align-items-center" ' +
+                    'onclick="pickLabItem(\'' + searchId + '\',\'' + hiddenId + '\',\'' + priceId + '\',\'' + (codeId||'') + '\',\'' + dropdownId + '\',' + idx + ')">' +
+                    '<span>' + item.name +
+                    (item.productCode ? ' <small class="text-muted">[' + item.productCode + ']</small>' : '') +
+                    (item.classification ? ' <small class="text-muted">' + item.classification + '</small>' : '') + '</span>' +
+                    '<span class="text-info fw-semibold text-nowrap">TZSh ' +
+                    (item.price && parseFloat(item.price) > 0 ? parseFloat(item.price).toLocaleString() : '—') +
+                    '</span></button>'
+                ).join('');
+                dropdown.style.display = 'block';
+            }).catch(() => { dropdown.style.display = 'none'; });
+    }
+    function pickLabItem(searchId, hiddenId, priceId, codeId, dropdownId, idx) {
+        const item = (labResults[dropdownId] || [])[idx];
+        if (!item) return;
+        document.getElementById(searchId).value = item.name;
+        document.getElementById(hiddenId).value = item.name;
+        if (codeId && item.productCode) document.getElementById(codeId).value = item.productCode;
+        if (item.price && parseFloat(item.price) > 0)
+            document.getElementById(priceId).value = parseFloat(item.price).toFixed(2);
+        document.getElementById(dropdownId).style.display = 'none';
+    }
+
+    // Toggle dosage mode (Standard ↔ Whole unit)
+    function toggleNurseMode(prefix) {
+        const whole = document.getElementById('nurse' + cap(prefix) + 'DispenseWhole').checked;
+        document.getElementById('nurse' + cap(prefix) + 'ModeStandard').classList.toggle('d-none',  whole);
+        document.getElementById('nurse' + cap(prefix) + 'ModeWhole').classList.toggle('d-none', !whole);
+        document.getElementById('nurse' + cap(prefix) + 'DispenseWholeHidden').value = whole ? 'true' : 'false';
+        updateNursePreview(prefix);
+    }
+    function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+    // Live quantity preview badge
+    function updateNursePreview(prefix) {
+        const whole = document.getElementById('nurse' + cap(prefix) + 'DispenseWhole')?.checked;
+        const preview = document.getElementById('nurse' + cap(prefix) + 'Preview');
+        let qty = 0, label = '';
+        if (whole) {
+            qty = parseInt(document.getElementById('nurse' + cap(prefix) + 'WholeQty')?.value) || 0;
+            label = qty > 0 ? 'Dispense ' + qty + ' whole unit(s)' : '';
+        } else {
+            const dpd  = parseInt(document.getElementById('nurse' + cap(prefix) + 'DosesDay')?.value)  || 0;
+            const qpd  = parseInt(document.getElementById('nurse' + cap(prefix) + 'QtyDose')?.value)   || 0;
+            const days = parseInt(document.getElementById('nurse' + cap(prefix) + 'NumDays')?.value)   || 0;
+            qty = dpd * qpd * days;
+            if (dpd && qpd && days) label = dpd + ' dose(s)/day × ' + qpd + ' unit(s)/dose × ' + days + ' day(s) = ' + qty + ' total';
+        }
+        // sync hidden fields
+        document.getElementById('nurse' + cap(prefix) + 'QtyHidden').value = qty || 1;
+        if (!whole) {
+            const dpd  = parseInt(document.getElementById('nurse' + cap(prefix) + 'DosesDay')?.value)  || 0;
+            const qpd  = parseInt(document.getElementById('nurse' + cap(prefix) + 'QtyDose')?.value)   || 0;
+            const days = parseInt(document.getElementById('nurse' + cap(prefix) + 'NumDays')?.value)   || 0;
+            document.getElementById('nurse' + cap(prefix) + 'DosesPerDayHidden').value  = dpd  || '';
+            document.getElementById('nurse' + cap(prefix) + 'QtyPerDoseHidden').value   = qpd  || '';
+            document.getElementById('nurse' + cap(prefix) + 'NumDaysHidden').value      = days || '';
+        }
+        if (preview) {
+            preview.textContent = label;
+            preview.classList.toggle('d-none', !label);
+        }
+    }
+
+    // Validate medication is selected before submit
+    function ensureNurseItemName(prefix) {
+        const name = document.getElementById('nurse' + cap(prefix) + 'ItemName')?.value?.trim();
+        if (!name) {
+            alert('Please select a medication from the search list.');
+            return false;
+        }
+        return true;
+    }
+
+    // Close dropdowns on outside click
+    document.addEventListener('click', function(e) {
+        ['nursePreopDropdown','nursePostopDropdown','nursePreopLabDropdown','nursePostopLabDropdown'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el && !el.contains(e.target) &&
+                !['nursePreopSearch','nursePostopSearch','nursePreopLabSearch','nursePostopLabSearch'].includes(e.target.id)) {
+                el.style.display = 'none';
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

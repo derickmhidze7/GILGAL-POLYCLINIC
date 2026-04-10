@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{admin/fragments :: head('Expense Management')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{admin/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{admin/fragments :: topbar('Expense Management')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{admin/fragments :: alerts}"></th:block>
+
+            <!-- ── Summary cards ────────────────────────────────────────── -->
+            <div class="row g-4 mb-4">
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card stat-card--blue">
+                        <div class="stat-card__icon"><i class="bi bi-calendar-day"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value"
+                                 th:text="'TZS /= ' + ${#numbers.formatDecimal(stats.todayTotal, 1, 'COMMA', 2, 'POINT')}">TZS /= 0.00</div>
+                            <div class="stat-card__label">Today's Expenses</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card stat-card--teal">
+                        <div class="stat-card__icon"><i class="bi bi-calendar-week"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value"
+                                 th:text="'TZS /= ' + ${#numbers.formatDecimal(stats.weekTotal, 1, 'COMMA', 2, 'POINT')}">TZS /= 0.00</div>
+                            <div class="stat-card__label">This Week</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card stat-card--green">
+                        <div class="stat-card__icon"><i class="bi bi-calendar-month"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value"
+                                 th:text="'TZS /= ' + ${#numbers.formatDecimal(stats.monthTotal, 1, 'COMMA', 2, 'POINT')}">TZS /= 0.00</div>
+                            <div class="stat-card__label">This Month</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card stat-card--orange">
+                        <div class="stat-card__icon"><i class="bi bi-hourglass-split"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value" th:text="${stats.pendingApprovals}">0</div>
+                            <div class="stat-card__label">Pending Approval</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Filter bar ────────────────────────────────────────────── -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">
+                        Filter Expenses
+                        <span th:if="${groupLabel}" class="badge bg-secondary ms-2 fw-normal"
+                              th:text="${groupLabel}"></span>
+                    </span>
+                    <a th:href="@{/admin/expenses/new}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-plus-circle me-1"></i>New Expense
+                    </a>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/admin/expenses}" method="get" class="row g-3 align-items-end">
+                        <input type="hidden" name="group" th:value="${group}" th:if="${group != null}"/>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label small fw-semibold">From Date</label>
+                            <input type="date" name="fromDate" class="form-control form-control-sm"
+                                   th:value="${fromDate}"/>
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label small fw-semibold">To Date</label>
+                            <input type="date" name="toDate" class="form-control form-control-sm"
+                                   th:value="${toDate}"/>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label small fw-semibold">Category</label>
+                            <select name="category" class="form-select form-select-sm">
+                                <option value="">All Categories</option>
+                                <option th:each="cat : ${categories}"
+                                        th:value="${cat.name()}"
+                                        th:text="${cat.label}"
+                                        th:selected="${cat == category}">Category</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label small fw-semibold">Status</label>
+                            <select name="status" class="form-select form-select-sm">
+                                <option value="">All Statuses</option>
+                                <option th:each="st : ${statuses}"
+                                        th:value="${st.name()}"
+                                        th:text="${st.label}"
+                                        th:selected="${st == status}">Status</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm flex-fill">
+                                <i class="bi bi-search me-1"></i>Filter
+                            </button>
+                            <a th:href="@{/admin/expenses(group=${group})}" class="btn btn-outline-secondary btn-sm flex-fill">
+                                <i class="bi bi-x-circle me-1"></i>Clear
+                            </a>
+                            <a th:href="@{/admin/expenses/analytics}" class="btn btn-outline-info btn-sm flex-fill">
+                                <i class="bi bi-graph-up me-1"></i>Analytics
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- ── Results table ─────────────────────────────────────────── -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <span class="fw-semibold">
+                        Expenses
+                        <span class="text-muted fw-normal fs-6"
+                              th:text="'(' + ${totalElements} + ' total)'"></span>
+                    </span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Date</th>
+                                <th>Title</th>
+                                <th>Category</th>
+                                <th class="text-end">Amount (TZS /=)</th>
+                                <th>Paid To</th>
+                                <th>Status</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(expenses)}">
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox fs-4 d-block mb-1"></i>No expenses found.
+                                </td>
+                            </tr>
+                            <tr th:each="exp, iter : ${expenses}">
+                                <td th:text="${(currentPage * 20) + iter.count}" class="text-muted small"></td>
+                                <td th:text="${#temporals.format(exp.expenseDate, 'd MMM yyyy')}" class="small"></td>
+                                <td th:text="${exp.title}" class="small fw-semibold"></td>
+                                <td>
+                                    <span class="badge" th:classappend="${exp.categoryBadgeCss}"
+                                          th:text="${exp.categoryLabel}"></span>
+                                </td>
+                                <td class="text-end small"
+                                    th:text="${#numbers.formatDecimal(exp.amount, 1, 'COMMA', 2, 'POINT')}"></td>
+                                <td th:text="${exp.paidTo}" class="small text-muted"></td>
+                                <td>
+                                    <span class="badge" th:classappend="${exp.statusBadgeCss}"
+                                          th:text="${exp.statusLabel}"></span>
+                                </td>
+                                <td class="text-center">
+                                    <div class="d-flex justify-content-center gap-1 flex-wrap">
+                                        <!-- Edit (only if not locked) -->
+                                        <a th:if="${exp.canEdit}"
+                                           th:href="@{/admin/expenses/{id}/edit(id=${exp.id})}"
+                                           class="btn btn-outline-primary btn-sm py-0 px-1"
+                                           title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <!-- Approve -->
+                                        <form th:if="${exp.canApprove}"
+                                              th:action="@{/admin/expenses/{id}/approve(id=${exp.id})}"
+                                              method="post" class="d-inline">
+                                            <button type="submit" class="btn btn-success btn-sm py-0 px-1" title="Approve">
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                        </form>
+                                        <!-- Reject -->
+                                        <form th:if="${exp.canApprove}"
+                                              th:action="@{/admin/expenses/{id}/reject(id=${exp.id})}"
+                                              method="post" class="d-inline">
+                                            <button type="submit" class="btn btn-warning btn-sm py-0 px-1" title="Reject">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </form>
+                                        <!-- Delete (only if not locked) -->
+                                        <form th:if="${exp.canEdit}"
+                                              th:action="@{/admin/expenses/{id}/delete(id=${exp.id})}"
+                                              method="post" class="d-inline"
+                                              onsubmit="return confirm('Delete this expense?')">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <div class="card-footer bg-white d-flex justify-content-between align-items-center"
+                     th:if="${totalPages > 1}">
+                    <small class="text-muted"
+                           th:text="'Page ' + (${currentPage} + 1) + ' of ' + ${totalPages}"></small>
+                    <div class="d-flex gap-1">
+                        <a th:href="@{/admin/expenses(page=${currentPage - 1}, fromDate=${fromDate}, toDate=${toDate}, category=${category}, status=${status}, group=${group})}"
+                           class="btn btn-outline-secondary btn-sm"
+                           th:classappend="${currentPage == 0} ? 'disabled'">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                        <a th:href="@{/admin/expenses(page=${currentPage + 1}, fromDate=${fromDate}, toDate=${toDate}, category=${category}, status=${status}, group=${group})}"
+                           class="btn btn-outline-secondary btn-sm"
+                           th:classappend="${currentPage + 1 >= totalPages} ? 'disabled'">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{admin/fragments :: scripts}"></th:block>
+</body>
+</html>

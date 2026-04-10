@@ -1,0 +1,9 @@
+ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS comorbidities TEXT;
+ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS current_symptoms TEXT;
+ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS mode_of_ambulation VARCHAR(50);
+ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS has_pain BOOLEAN;
+ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS pain_score INTEGER;
+ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS pain_location VARCHAR(255);
+ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS fall_risk BOOLEAN;
+ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS fall_score INTEGER;
+ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS infectious_disease_risk BOOLEAN;

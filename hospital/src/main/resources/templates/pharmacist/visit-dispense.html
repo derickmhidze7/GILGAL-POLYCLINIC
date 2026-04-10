@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{pharmacist/fragments :: head('Dispense Visit Prescription')}"></th:block>
+</head>
+<body>
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{pharmacist/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{pharmacist/fragments :: topbar('Dispense Visit Prescription')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{pharmacist/fragments :: alerts}"></th:block>
+
+            <!-- Prescription Info Card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-file-medical-fill me-2 text-success"></i>Prescription Details
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="text-muted small">Patient</label>
+                            <p class="mb-0 fw-semibold"
+                               th:text="${vp.medicalRecord.patient.firstName + ' ' + vp.medicalRecord.patient.lastName}"></p>
+                            <small class="text-muted" th:text="${vp.medicalRecord.patient.nationalId}"></small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="text-muted small">Medication</label>
+                            <p class="mb-0 fw-semibold"
+                               th:text="${vp.priceItem != null ? vp.priceItem.productName : vp.medicationName}"></p>
+                            <small class="text-muted"
+                                   th:text="${vp.priceItem != null && vp.priceItem.classification != null ? vp.priceItem.classification : ''}"></small>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="text-muted small">Dosage</label>
+                            <p class="mb-0" th:text="${vp.dosage != null ? vp.dosage : '—'}"></p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="text-muted small">Frequency</label>
+                            <p class="mb-0" th:text="${vp.frequency != null ? vp.frequency : '—'}"></p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="text-muted small">Duration</label>
+                            <p class="mb-0" th:text="${vp.duration != null ? vp.duration : '—'}"></p>
+                        </div>
+                        <div class="col-md-3" th:if="${vp.route != null}">
+                            <label class="text-muted small">Route</label>
+                            <p class="mb-0" th:text="${vp.route}"></p>
+                        </div>
+                        <div class="col-12" th:if="${vp.instructions != null}">
+                            <label class="text-muted small">Instructions</label>
+                            <p class="mb-0" th:text="${vp.instructions}"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stock Batches Table (FEFO) -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-boxes me-2 text-primary"></i>Available Stock Batches
+                    <span class="text-muted small ms-2">(FEFO — earliest expiry first)</span>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(stockBatches)}"
+                         class="alert alert-warning m-3 mb-0">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>No stock batches found</strong> for this medication.
+                        If you can see the item in <a th:href="@{/pharmacist/stock}" class="alert-link">Stock Management</a>,
+                        please click <strong>Restock</strong> on that item to create a proper batch record — then return here to dispense.
+                    </div>
+                    <div class="table-responsive" th:if="${!#lists.isEmpty(stockBatches)}">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Batch #</th>
+                                <th>Expiry Date</th>
+                                <th>Remaining Qty</th>
+                                <th>Status</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="b : ${stockBatches}">
+                                <td th:text="${b.batchNumber}"></td>
+                                <td th:text="${#temporals.format(b.expiryDate, 'dd MMM yyyy')}"></td>
+                                <td th:text="${b.remainingQuantity}"></td>
+                                <td>
+                                    <span class="badge"
+                                          th:classappend="${b.expiryDate != null && b.expiryDate.isBefore(#temporals.createNow().toLocalDate().plusDays(30))} ? 'bg-danger' : 'bg-success'"
+                                          th:text="${b.expiryDate != null && b.expiryDate.isBefore(#temporals.createNow().toLocalDate().plusDays(30))} ? 'Expiring Soon' : 'OK'"></span>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dispense Form -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-capsule-pill me-2 text-success"></i>Dispense
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/pharmacist/visit-prescription/{id}/dispense(id=${vp.id})}"
+                          method="post">
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Select Batch (FEFO) <span class="text-danger">*</span></label>
+                                <th:block th:if="${!#lists.isEmpty(stockBatches)}">
+                                    <select name="stockBatchId" class="form-select" required
+                                            onchange="updateMaxQty(this)">
+                                        <option value="">— Select Batch (earliest expiry first) —</option>
+                                        <option th:each="b : ${stockBatches}"
+                                                th:value="${b.id}"
+                                                th:attr="data-max=${b.remainingQuantity}"
+                                                th:text="${'Batch: ' + b.batchNumber
+                                                          + '  |  Exp: ' + #temporals.format(b.expiryDate,'dd MMM yyyy')
+                                                          + '  |  Available: ' + b.remainingQuantity + ' units'}">—</option>
+                                    </select>
+                                    <div class="text-muted small mt-1">
+                                        <i class="bi bi-info-circle me-1"></i>Batches sorted by expiry date (FEFO).
+                                    </div>
+                                </th:block>
+                                <div th:if="${#lists.isEmpty(stockBatches)}"
+                                     class="text-danger small">
+                                    <i class="bi bi-exclamation-circle me-1"></i>No stock batches found.
+                                    Go to <a th:href="@{/pharmacist/stock}">Stock Management</a> and use
+                                    <strong>Restock</strong> to add a batch for this item.
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Quantity <span class="text-danger">*</span></label>
+                                <input type="number" name="quantityDispensed" id="quantityDispensed"
+                                       class="form-control" min="1" step="1"
+                                       th:value="${vp.totalQuantityToDispense != null ? vp.totalQuantityToDispense : 1}"
+                                       required
+                                       oninput="enforceInteger(this)"
+                                       title="Whole numbers only"/>
+                                <div class="text-muted small mt-1" th:if="${vp.totalQuantityToDispense != null}">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Doctor prescribed <strong th:text="${vp.totalQuantityToDispense}"></strong> units — adjust if needed.
+                                </div>
+                                <div class="text-muted small mt-1" id="maxQtyHint"></div>
+                                <div class="invalid-feedback" id="qtyError">
+                                    Quantity must be a whole number (no decimals).
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Dispensing Notes</label>
+                            <input type="text" name="dispensingNotes" class="form-control"
+                                   placeholder="e.g. Take with food, avoid alcohol"/>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Counselling Notes</label>
+                            <textarea name="counsellingNotes" class="form-control" rows="3"
+                                      placeholder="Counselling provided to patient regarding medication use, side effects, storage, adherence..."></textarea>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success"
+                                    th:disabled="${#lists.isEmpty(stockBatches)}">
+                                <i class="bi bi-check-circle-fill me-1"></i>Confirm Dispense
+                            </button>
+                            <a th:href="@{/pharmacist/dashboard}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{pharmacist/fragments :: scripts}"></th:block>
+<script>
+    function updateMaxQty(sel) {
+        const max  = sel.selectedOptions[0]?.dataset.max;
+        const hint = document.getElementById('maxQtyHint');
+        const inp  = document.getElementById('quantityDispensed');
+        if (max) {
+            hint.textContent = 'Max available: ' + max + ' units';
+            inp.max = max;
+        } else {
+            hint.textContent = '';
+            inp.removeAttribute('max');
+        }
+    }
+
+    function enforceInteger(inp) {
+        if (inp.value.includes('.')) {
+            inp.classList.add('is-invalid');
+            document.getElementById('qtyError').style.display = 'block';
+            inp.value = Math.floor(inp.value);
+        } else {
+            inp.classList.remove('is-invalid');
+            document.getElementById('qtyError').style.display = 'none';
+        }
+    }
+</script>
+</body>
+</html>

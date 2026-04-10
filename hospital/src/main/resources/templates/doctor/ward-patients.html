@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{doctor/fragments :: head('Admitted Patients')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{doctor/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{doctor/fragments :: topbar('Admitted Patients')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{doctor/fragments :: alerts}"></th:block>
+
+            <!-- Page header -->
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-hospital-fill text-primary me-2"></i>Admitted Patients
+                    </h5>
+                    <small class="text-muted">All patients currently in the ward</small>
+                </div>
+                <span class="badge bg-primary fs-6"
+                      th:text="${#lists.size(admittedPatients)} + ' patient(s)'">0</span>
+            </div>
+
+            <!-- Filter bar -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body py-2">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-5">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" id="searchInput" class="form-control"
+                                       placeholder="Search name, national ID, ward, bed…">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <select id="filterStatus" class="form-select form-select-sm">
+                                <option value="">All statuses</option>
+                                <option value="ADMITTED">Admitted</option>
+                                <option value="STABLE">Stable</option>
+                                <option value="CRITICAL">Critical</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select id="filterAlert" class="form-select form-select-sm">
+                                <option value="">All patients</option>
+                                <option value="alert">With alerts only</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty state -->
+            <div th:if="${#lists.isEmpty(admittedPatients)}" class="text-center py-5">
+                <i class="bi bi-hospital display-1 text-muted"></i>
+                <p class="mt-3 text-muted">You have no currently admitted patients.</p>
+            </div>
+
+            <!-- Patients table -->
+            <div th:if="${!#lists.isEmpty(admittedPatients)}" class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="patientsTable">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Patient</th>
+                                <th>Ward / Bed</th>
+                                <th>Status</th>
+                                <th>Admitted</th>
+                                <th>Expected Discharge</th>
+                                <th>Assigned Nurse</th>
+                                <th>Alerts</th>
+                                <th></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="p : ${admittedPatients}" class="patient-row"
+                                th:data-search="${p.patientFullName + ' ' + (p.patientNationalId ?: '') + ' ' + (p.ward ?: '') + ' ' + (p.bedNumber ?: '')}"
+                                th:data-status="${p.statusName}"
+                                th:data-alert="${p.hasAlerts ? 'alert' : ''}">
+                                <td>
+                                    <div class="fw-semibold" th:text="${p.patientFullName}">—</div>
+                                    <small class="text-muted" th:text="${p.patientNationalId}">—</small>
+                                </td>
+                                <td>
+                                    <span th:text="${p.ward ?: '—'}">—</span>
+                                    <span class="text-muted"
+                                          th:if="${p.bedNumber != null and !#strings.isEmpty(p.bedNumber)}"
+                                          th:text="' / ' + ${p.bedNumber}"></span>
+                                </td>
+                                <td>
+                                    <span th:class="${p.statusName == 'CRITICAL' ? 'badge bg-danger' :
+                                                   (p.statusName == 'STABLE'   ? 'badge bg-success' :
+                                                   (p.statusName == 'ADMITTED' ? 'badge bg-primary' : 'badge bg-secondary'))}"
+                                          th:text="${p.statusName}">—</span>
+                                </td>
+                                <td class="small"
+                                    th:text="${p.admitDate != null ? #temporals.format(p.admitDate,'dd MMM yyyy') : '—'}">—</td>
+                                <td class="small"
+                                    th:text="${p.dischargeDate != null ? #temporals.format(p.dischargeDate,'dd MMM yyyy') : '—'}">—</td>
+                                <td class="small" th:text="${p.assignedNurseName}">—</td>
+                                <td>
+                                    <i th:if="${p.hasAlerts}"  class="bi bi-exclamation-triangle-fill text-danger"></i>
+                                    <i th:if="${!p.hasAlerts}" class="bi bi-check-circle-fill text-success"></i>
+                                </td>
+                                <td class="d-flex gap-1">
+                                    <a th:href="@{/doctor/ward-patients/{id}(id=${p.assignmentId})}"
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye me-1"></i>View
+                                    </a>
+                                    <form th:if="${p.statusName != 'DISCHARGED' and p.statusName != 'TRANSFERRED'}"
+                                          th:action="@{/doctor/ward-patients/{id}/discharge(id=${p.assignmentId})}"
+                                          method="post" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                th:attr="data-name=${p.patientFullName}"
+                                                onclick="return confirm('Discharge ' + this.dataset.name + ' from the ward?')">
+                                            <i class="bi bi-box-arrow-right me-1"></i>Discharge
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{doctor/fragments :: scripts}"></th:block>
+
+<script>
+// Live filter
+const searchInput  = document.getElementById('searchInput');
+const filterStatus = document.getElementById('filterStatus');
+const filterAlert  = document.getElementById('filterAlert');
+
+function applyFilter() {
+    const q = searchInput ? searchInput.value.toLowerCase() : '';
+    const s = filterStatus ? filterStatus.value.toUpperCase() : '';
+    const a = filterAlert  ? filterAlert.value  : '';
+    document.querySelectorAll('.patient-row').forEach(row => {
+        const search = (row.dataset.search || '').toLowerCase();
+        const status = row.dataset.status || '';
+        const alert  = row.dataset.alert  || '';
+        const matchQ = !q || search.includes(q);
+        const matchS = !s || status === s;
+        const matchA = !a || alert  === a;
+        row.style.display = (matchQ && matchS && matchA) ? '' : 'none';
+    });
+}
+
+if (searchInput)  searchInput.addEventListener('input',   applyFilter);
+if (filterStatus) filterStatus.addEventListener('change', applyFilter);
+if (filterAlert)  filterAlert.addEventListener('change',  applyFilter);
+</script>
+
+</body>
+</html>

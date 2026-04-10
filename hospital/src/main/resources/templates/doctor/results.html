@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{doctor/fragments :: head('Patient Results')}"></th:block>
+    <style>
+        .badge-NORMAL      { background-color: #198754; }
+        .badge-ABNORMAL    { background-color: #ffc107; color: #000 !important; }
+        .badge-CRITICAL    { background-color: #dc3545; }
+        .badge-ROUTINE     { background-color: #0dcaf0; color: #000 !important; }
+        .badge-URGENT      { background-color: #fd7e14; }
+        .badge-STAT        { background-color: #dc3545; }
+        .results-table th  { font-size: .8rem; text-transform: uppercase; letter-spacing: .03rem; }
+        .detail-label      { font-size: .75rem; text-transform: uppercase; letter-spacing: .04rem; color: #6c757d; font-weight: 600; }
+        .param-table th    { font-size: .75rem; text-transform: uppercase; letter-spacing: .03rem; background: #f8f9fa; }
+        .section-divider   { border-top: 1px solid #dee2e6; padding-top: .75rem; margin-top: .75rem; }
+    </style>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{doctor/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{doctor/fragments :: topbar('Patient Results')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{doctor/fragments :: alerts}"></th:block>
+
+            <!-- ── Page header ──────────────────────────────────────────────── -->
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h5 class="mb-0 fw-bold">
+                        <i class="bi bi-clipboard2-data-fill text-primary me-2"></i>Patient Results
+                    </h5>
+                    <small class="text-muted">Lab results &amp; dispensed prescriptions for your patients</small>
+                </div>
+            </div>
+            <!-- data-load error -->
+            <div th:if="${dataError}" class="alert alert-warning alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <span th:text="${dataError}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            <!-- ── Lab Results ───────────────────────────────────────────────── -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-light fw-semibold">
+                    <i class="bi bi-eyedropper text-success me-2"></i>Laboratory Results
+                    <span class="badge bg-secondary ms-2" th:text="${#lists.size(labResults)}">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(labResults)}" class="p-4 text-center text-muted">
+                        <i class="bi bi-inbox fs-2 d-block mb-2"></i>No lab results available yet.
+                    </div>
+                    <div th:if="${!#lists.isEmpty(labResults)}" class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 results-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Patient</th>
+                                    <th>Test</th>
+                                    <th>Urgency</th>
+                                    <th>Result</th>
+                                    <th>Interpretation</th>
+                                    <th>Performed By</th>
+                                    <th>Date</th>
+                                    <th class="pe-3">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="lr, iterStat : ${labResults}">
+                                    <td class="ps-3">
+                                        <strong th:text="${lr.patient.firstName + ' ' + lr.patient.lastName}">—</strong>
+                                        <br/>
+                                        <small class="text-muted" th:if="${lr.patient.nationalId != null}" th:text="${lr.patient.nationalId}">—</small>
+                                    </td>
+                                    <td>
+                                        <span th:text="${lr.testName}">—</span>
+                                        <br/>
+                                        <small class="text-muted" th:if="${lr.testCode != null}" th:text="${'[' + lr.testCode + ']'}">—</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge"
+                                              th:classappend="${'badge-' + lr.urgency}"
+                                              th:text="${lr.urgency}">—</span>
+                                    </td>
+                                    <td>
+                                        <span th:if="${lr.result != null}"
+                                              th:text="${lr.result.resultValue + (lr.result.unit != null ? ' ' + lr.result.unit : '')}">—</span>
+                                        <span th:if="${lr.result == null}" class="text-muted fst-italic">Pending</span>
+                                    </td>
+                                    <td>
+                                        <span th:if="${lr.result != null}"
+                                              class="badge text-white"
+                                              th:classappend="${'badge-' + lr.result.interpretation}"
+                                              th:text="${lr.result.interpretation}">—</span>
+                                        <span th:if="${lr.result == null}" class="text-muted">—</span>
+                                    </td>
+                                    <td>
+                                        <span th:if="${lr.result?.performedBy != null}"
+                                              th:text="${lr.result.performedBy.firstName + ' ' + lr.result.performedBy.lastName}">—</span>
+                                        <span th:if="${lr.result == null or lr.result.performedBy == null}" class="text-muted">—</span>
+                                    </td>
+                                    <td>
+                                        <span th:if="${lr.result != null and lr.result.resultDateTime != null}"
+                                              th:text="${#temporals.format(lr.result.resultDateTime,'dd MMM yyyy')}">—</span>
+                                        <span th:if="${lr.result == null or lr.result.resultDateTime == null}" class="text-muted">—</span>
+                                    </td>
+                                    <td class="pe-3">
+                                        <button th:if="${lr.result != null}"
+                                                class="btn btn-sm btn-outline-primary"
+                                                data-bs-toggle="modal"
+                                                th:attr="data-bs-target=${'#labModal-' + lr.id}">
+                                            <i class="bi bi-search me-1"></i>View
+                                        </button>
+                                        <span th:if="${lr.result == null}" class="text-muted small">—</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Per-result detail modals ──────────────────────────────────── -->
+            <th:block th:each="lr : ${labResults}" th:if="${lr.result != null}">
+                <div class="modal fade" th:id="${'labModal-' + lr.id}"
+                     tabindex="-1" aria-labelledby="labModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                        <div class="modal-content">
+                            <!-- Header -->
+                            <div class="modal-header bg-light">
+                                <h6 class="modal-title fw-bold">
+                                    <i class="bi bi-clipboard2-pulse-fill text-success me-2"></i>
+                                    Lab Result — <span th:text="${lr.testName}">Test</span>
+                                </h6>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+
+                                <!-- Patient & Request info -->
+                                <div class="row g-3 mb-2">
+                                    <div class="col-sm-6">
+                                        <p class="detail-label mb-1">Patient</p>
+                                        <p class="mb-0 fw-semibold" th:text="${lr.patient.firstName + ' ' + lr.patient.lastName}">—</p>
+                                        <small class="text-muted" th:if="${lr.patient.nationalId != null}" th:text="${lr.patient.nationalId}">—</small>
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <p class="detail-label mb-1">Test Code</p>
+                                        <p class="mb-0" th:text="${lr.testCode != null ? lr.testCode : '—'}">—</p>
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <p class="detail-label mb-1">Urgency</p>
+                                        <span class="badge"
+                                              th:classappend="${'badge-' + lr.urgency}"
+                                              th:text="${lr.urgency}">—</span>
+                                    </div>
+                                    <div class="col-sm-6" th:if="${lr.requestedAt != null}">
+                                        <p class="detail-label mb-1">Requested At</p>
+                                        <p class="mb-0" th:text="${#temporals.format(lr.requestedAt, 'dd MMM yyyy HH:mm')}">—</p>
+                                    </div>
+                                    <div class="col-sm-6" th:if="${lr.specialInstructions != null and !lr.specialInstructions.isEmpty()}">
+                                        <p class="detail-label mb-1">Special Instructions</p>
+                                        <p class="mb-0 fst-italic text-muted" th:text="${lr.specialInstructions}">—</p>
+                                    </div>
+                                </div>
+
+                                <!-- Sample info -->
+                                <div class="section-divider">
+                                    <p class="detail-label mb-2"><i class="bi bi-droplet-half me-1"></i>Sample Information</p>
+                                    <div class="row g-2">
+                                        <div class="col-sm-3">
+                                            <p class="detail-label mb-1">Type</p>
+                                            <p class="mb-0" th:text="${lr.sampleType != null ? lr.sampleType : '—'}">—</p>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <p class="detail-label mb-1">Quality</p>
+                                            <span class="badge"
+                                                  th:classappend="${lr.sampleQuality != null and lr.sampleQuality.name() == 'ADEQUATE'} ? 'bg-success' : 'bg-warning text-dark'"
+                                                  th:text="${lr.sampleQuality != null ? lr.sampleQuality : '—'}">—</span>
+                                        </div>
+                                        <div class="col-sm-3" th:if="${lr.sampleCollectedAt != null}">
+                                            <p class="detail-label mb-1">Collected At</p>
+                                            <p class="mb-0" th:text="${#temporals.format(lr.sampleCollectedAt,'dd MMM yyyy HH:mm')}">—</p>
+                                        </div>
+                                        <div class="col-sm-3" th:if="${lr.sampleReceivedAt != null}">
+                                            <p class="detail-label mb-1">Received At</p>
+                                            <p class="mb-0" th:text="${#temporals.format(lr.sampleReceivedAt,'dd MMM yyyy HH:mm')}">—</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Overall result -->
+                                <div class="section-divider">
+                                    <p class="detail-label mb-2"><i class="bi bi-bar-chart-fill me-1"></i>Overall Result</p>
+                                    <div class="row g-2">
+                                        <div class="col-sm-4">
+                                            <p class="detail-label mb-1">Value</p>
+                                            <p class="mb-0 fw-semibold"
+                                               th:text="${lr.result.resultValue + (lr.result.unit != null ? ' ' + lr.result.unit : '')}">—</p>
+                                        </div>
+                                        <div class="col-sm-4">
+                                            <p class="detail-label mb-1">Reference Range</p>
+                                            <p class="mb-0" th:text="${lr.result.referenceRange != null ? lr.result.referenceRange : '—'}">—</p>
+                                        </div>
+                                        <div class="col-sm-4">
+                                            <p class="detail-label mb-1">Interpretation</p>
+                                            <span class="badge text-white"
+                                                  th:classappend="${'badge-' + lr.result.interpretation}"
+                                                  th:text="${lr.result.interpretation}">—</span>
+                                        </div>
+                                        <div class="col-12" th:if="${lr.result.notes != null and !lr.result.notes.isEmpty()}">
+                                            <p class="detail-label mb-1">Technician Notes</p>
+                                            <div class="alert alert-light border mb-0 py-2 px-3">
+                                                <i class="bi bi-chat-left-text text-muted me-1"></i>
+                                                <span th:text="${lr.result.notes}">—</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Individual parameters -->
+                                <div class="section-divider" th:if="${!#lists.isEmpty(lr.result.parameters)}">
+                                    <p class="detail-label mb-2"><i class="bi bi-table me-1"></i>Individual Parameters</p>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered align-middle mb-0 param-table">
+                                            <thead>
+                                                <tr>
+                                                    <th class="ps-2">Parameter</th>
+                                                    <th>Value</th>
+                                                    <th>Unit</th>
+                                                    <th>Ref. Range</th>
+                                                    <th class="pe-2">Interpretation</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr th:each="resultParam : ${lr.result.parameters}">
+                                                    <td class="ps-2 fw-semibold" th:text="${resultParam.parameterName}">—</td>
+                                                    <td th:text="${resultParam.resultValue != null ? resultParam.resultValue : '—'}">—</td>
+                                                    <td th:text="${resultParam.unit != null ? resultParam.unit : '—'}">—</td>
+                                                    <td th:text="${resultParam.referenceRange != null ? resultParam.referenceRange : '—'}">—</td>
+                                                    <td class="pe-2">
+                                                        <span th:if="${resultParam.interpretation != null}"
+                                                              class="badge text-white"
+                                                              th:classappend="${'badge-' + resultParam.interpretation}"
+                                                              th:text="${resultParam.interpretation}">—</span>
+                                                        <span th:if="${resultParam.interpretation == null}" class="text-muted">—</span>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- Technician & verification -->
+                                <div class="section-divider">
+                                    <p class="detail-label mb-2"><i class="bi bi-person-badge me-1"></i>Technician &amp; Verification</p>
+                                    <div class="row g-2">
+                                        <div class="col-sm-4">
+                                            <p class="detail-label mb-1">Performed By</p>
+                                            <p class="mb-0" th:if="${lr.result.performedBy != null}"
+                                               th:text="${lr.result.performedBy.firstName + ' ' + lr.result.performedBy.lastName}">—</p>
+                                            <p class="mb-0 text-muted" th:if="${lr.result.performedBy == null}">—</p>
+                                        </div>
+                                        <div class="col-sm-4">
+                                            <p class="detail-label mb-1">Result Date &amp; Time</p>
+                                            <p class="mb-0" th:if="${lr.result.resultDateTime != null}"
+                                               th:text="${#temporals.format(lr.result.resultDateTime,'dd MMM yyyy HH:mm')}">—</p>
+                                        </div>
+                                        <div class="col-sm-4">
+                                            <p class="detail-label mb-1">Status</p>
+                                            <span th:if="${lr.result.submitted}" class="badge bg-success me-1">Submitted</span>
+                                            <span th:if="${lr.result.locked}" class="badge bg-secondary me-1">Locked</span>
+                                            <span th:if="${!lr.result.submitted and !lr.result.locked}" class="badge bg-warning text-dark">Draft</span>
+                                        </div>
+                                        <div class="col-sm-4" th:if="${lr.result.verifiedBy != null}">
+                                            <p class="detail-label mb-1">Verified By</p>
+                                            <p class="mb-0" th:text="${lr.result.verifiedBy.firstName + ' ' + lr.result.verifiedBy.lastName}">—</p>
+                                        </div>
+                                        <div class="col-sm-4" th:if="${lr.result.verifiedAt != null}">
+                                            <p class="detail-label mb-1">Verified At</p>
+                                            <p class="mb-0" th:text="${#temporals.format(lr.result.verifiedAt,'dd MMM yyyy HH:mm')}">—</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div><!-- /modal-body -->
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </th:block>
+
+            <!-- ── Dispensed Prescriptions ───────────────────────────────────── -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-light fw-semibold">
+                    <i class="bi bi-capsule text-primary me-2"></i>Dispensed Prescriptions
+                    <span class="badge bg-secondary ms-2" th:text="${#lists.size(dispensedRx)}">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(dispensedRx)}" class="p-4 text-center text-muted">
+                        <i class="bi bi-inbox fs-2 d-block mb-2"></i>No dispensed prescriptions yet.
+                    </div>
+                    <div th:if="${!#lists.isEmpty(dispensedRx)}" class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 results-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Patient</th>
+                                    <th>Drug</th>
+                                    <th>Strength</th>
+                                    <th>Dose</th>
+                                    <th>Frequency</th>
+                                    <th>Duration</th>
+                                    <th>Route</th>
+                                    <th class="pe-3">Visit Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="px : ${dispensedRx}">
+                                    <td class="ps-3">
+                                        <strong th:text="${px.medicalRecord.patient.firstName + ' ' + px.medicalRecord.patient.lastName}">—</strong>
+                                        <br/>
+                                        <small class="text-muted"
+                                               th:if="${px.medicalRecord.patient.nationalId != null}"
+                                               th:text="${px.medicalRecord.patient.nationalId}">—</small>
+                                    </td>
+                                    <td>
+                                        <span th:text="${px.medication.genericName}">—</span>
+                                        <br/>
+                                        <small class="text-muted"
+                                               th:if="${px.medication.brandName != null}"
+                                               th:text="${'(' + px.medication.brandName + ')'}">—</small>
+                                    </td>
+                                    <td>
+                                        <small th:text="${px.medication.strength}">—</small>
+                                    </td>
+                                    <td th:text="${px.dosage}">—</td>
+                                    <td th:text="${px.frequency}">—</td>
+                                    <td th:text="${px.duration}">—</td>
+                                    <td>
+                                        <span class="badge bg-secondary" th:text="${px.route}">—</span>
+                                    </td>
+                                    <td class="pe-3">
+                                        <span th:if="${px.medicalRecord.visitDate != null}"
+                                              th:text="${#temporals.format(px.medicalRecord.visitDate,'dd MMM yyyy')}">—</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{doctor/fragments :: scripts}"></th:block>
+</body>
+</html>

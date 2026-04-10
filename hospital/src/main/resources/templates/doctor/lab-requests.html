@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{doctor/fragments :: head('Lab Requests')}"></th:block>
+    <style>
+        .queue-row { transition: background .12s; }
+        .queue-row:hover { background: #f0fdf4; }
+        .autocomplete-drop {
+            position: absolute; z-index: 1055; left: 0; right: 0;
+            background: #fff; border: 1px solid #dee2e6; border-radius: .375rem;
+            box-shadow: 0 4px 14px rgba(0,0,0,.12); max-height: 240px; overflow-y: auto;
+        }
+        .autocomplete-drop .ac-item {
+            padding: .45rem .75rem; cursor: pointer; font-size: .82rem;
+            border-bottom: 1px solid #f4f4f4;
+        }
+        .autocomplete-drop .ac-item:hover { background: #f0fdf4; }
+    </style>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{doctor/fragments :: sidebar}"></th:block>
+    <div id="page-content">
+        <th:block th:replace="~{doctor/fragments :: topbar('Lab Requests')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{doctor/fragments :: alerts}"></th:block>
+
+            <!-- Page header -->
+            <div class="mb-4">
+                <h5 class="fw-bold mb-0">
+                    <i class="bi bi-flask text-success me-2"></i>Lab Requests
+                </h5>
+                <small class="text-muted">Patients currently in consultation — first come, first served.</small>
+            </div>
+
+            <!-- Patient queue -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 d-flex align-items-center justify-content-between">
+                    <span class="fw-semibold">Active Patients</span>
+                    <span class="badge bg-success-subtle text-success" id="queue-count" style="display:none"></span>
+                </div>
+                <div class="card-body p-0">
+
+                    <div id="queue-loading" class="text-center text-muted py-4">
+                        <span class="spinner-border spinner-border-sm me-2"></span>Loading patients...
+                    </div>
+
+                    <div id="queue-empty" class="text-center text-muted py-5 d-none">
+                        <i class="bi bi-person-slash fs-1 d-block mb-2 opacity-50"></i>
+                        <p class="mb-0">No patients in consultation right now.</p>
+                    </div>
+
+                    <div class="table-responsive d-none" id="queue-table-wrap">
+                        <table class="table table-sm mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:3rem">#</th>
+                                    <th>Patient</th>
+                                    <th>Phone</th>
+                                    <th>Visit Time</th>
+                                    <th style="width:7rem">Pending Tests</th>
+                                    <th style="width:22rem"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="queue-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     ANALYSIS MODAL
+═══════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="analysisModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom-0 pb-0">
+                <div>
+                    <h6 class="modal-title fw-bold mb-0">
+                        <i class="bi bi-flask text-success me-2"></i>Request Lab Analysis
+                    </h6>
+                    <small class="text-muted" id="modal-patient-name"></small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body pt-3">
+
+                <!-- Test search -->
+                <div class="mb-3" style="position:relative">
+                    <label class="form-label fw-semibold small">
+                        Test (LAB catalogue) <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" id="test-search" class="form-control"
+                           placeholder="Type 2+ characters to search lab catalogue…"
+                           autocomplete="off" oninput="debounceTest(this)"/>
+                    <input type="hidden" id="test-id"/>
+                    <div class="autocomplete-drop" id="test-drop" style="display:none"></div>
+                    <div class="form-text" id="test-price-hint"></div>
+                </div>
+
+                <hr class="my-3"/>
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">
+                            Urgency <span class="text-danger">*</span>
+                        </label>
+                        <select id="lab-urgency" class="form-select">
+                            <option value="ROUTINE">Routine</option>
+                            <option value="URGENT">Urgent</option>
+                            <option value="STAT">STAT (Immediate)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label small fw-semibold">Special Instructions</label>
+                        <input type="text" id="lab-instructions" class="form-control"
+                               placeholder="e.g. Fasting sample required, collect before 8 AM…"/>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-success px-4" id="btn-analysis-save"
+                        onclick="saveLabRequest()">
+                    <i class="bi bi-check2 me-1"></i>Save Request
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     LAB HISTORY MODAL
+═══════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="labHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom-0 pb-0">
+                <div>
+                    <h6 class="modal-title fw-bold mb-0">
+                        <i class="bi bi-clock-history text-secondary me-2"></i>Lab Request History
+                    </h6>
+                    <small class="text-muted" id="lab-history-patient-name"></small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div id="lab-history-loading" class="text-center text-muted py-4">
+                    <span class="spinner-border spinner-border-sm me-2"></span>Loading history…
+                </div>
+                <div id="lab-history-empty" class="text-center text-muted py-4 d-none">
+                    <i class="bi bi-flask fs-2 opacity-50 d-block mb-2"></i>
+                    No lab requests recorded for this patient yet.
+                </div>
+                <div id="lab-history-content" class="d-none">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Test</th>
+                                <th>Urgency</th>
+                                <th>Special Instructions</th>
+                                <th>Status</th>
+                                <th>Requested At</th>
+                                <th>Performed By</th>
+                                <th>Result</th>
+                                <th>Verified By</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lab-history-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="mainToast" class="toast align-items-center border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body fw-semibold" id="toastBody"></div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+let _selected = null; // { recordId, appointmentId, patientName }
+
+function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function fmtTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+function fmtTZS(n) {
+    return 'TZS ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+function showToast(type, msg) {
+    const t = document.getElementById('mainToast'), b = document.getElementById('toastBody');
+    t.className = `toast align-items-center text-bg-${type} border-0`;
+    b.textContent = msg;
+    bootstrap.Toast.getOrCreateInstance(t, { delay: 5000 }).show();
+}
+
+// ─── Send unsent lab requests to billing ─────────────────────────────────────
+async function sendToBilling(recordId, patientName, count) {
+    if (!recordId || recordId === 'null') return;
+    if (!confirm(`Send ${count} lab test(s) for ${patientName} to the receptionist for payment?`)) return;
+    try {
+        const r = await fetch('/doctor/api/lab/' + recordId + '/send-to-payment', { method: 'POST' });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.message || 'Failed');
+        showToast('success', data.message || 'Lab tests sent to billing.');
+        loadQueue();
+    } catch (e) {
+        showToast('danger', 'Error: ' + e.message);
+    }
+}
+
+// ─── Load patient queue ───────────────────────────────────────────────────────
+async function loadQueue() {
+    try {
+        const r = await fetch('/doctor/api/queue');
+        if (!r.ok) throw new Error('Server returned ' + r.status + ' — check that you are logged in as a doctor.');
+        const queue = await r.json();
+        document.getElementById('queue-loading').classList.add('d-none');
+
+        if (!queue.length) {
+            document.getElementById('queue-empty').classList.remove('d-none');
+            return;
+        }
+
+        const count = document.getElementById('queue-count');
+        count.textContent = queue.length + ' patient' + (queue.length !== 1 ? 's' : '');
+        count.style.display = '';
+
+        document.getElementById('queue-tbody').innerHTML = queue.map(p => {
+            const hasRecord  = p.recordId && p.recordId !== 'null';
+            const pending    = p.pendingLabCount || 0;
+            return `
+            <tr class="queue-row">
+                <td><span class="badge bg-success rounded-pill">${p.position}</span></td>
+                <td class="fw-semibold">${esc(p.firstName)} ${esc(p.lastName)}</td>
+                <td class="text-muted small">${esc(p.phone) || '—'}</td>
+                <td class="text-muted small">${fmtTime(p.visitTime)}</td>
+                <td class="text-center">
+                    ${pending > 0
+                        ? `<span class="badge bg-warning text-dark">${pending} unsent</span>`
+                        : `<span class="text-muted small">—</span>`}
+                </td>
+                <td class="d-flex gap-1 flex-wrap">
+                    <button class="btn btn-sm btn-success py-1 px-2"
+                            onclick="openAnalysisModal('${p.recordId}','${p.appointmentId}','${esc(p.firstName)} ${esc(p.lastName)}')">
+                        <i class="bi bi-flask me-1"></i>Analysis
+                    </button>
+                    ${hasRecord && pending > 0 ? `
+                    <button class="btn btn-sm btn-primary py-1 px-2"
+                            onclick="sendToBilling('${p.recordId}','${esc(p.firstName)} ${esc(p.lastName)}',${pending})">
+                        <i class="bi bi-cash-coin me-1"></i>Send to Billing
+                    </button>` : ''}
+                    <button class="btn btn-sm btn-outline-secondary py-1 px-2"
+                            onclick="openLabHistoryModal('${p.recordId}','${esc(p.firstName)} ${esc(p.lastName)}')"
+                            ${!hasRecord ? 'disabled title="No consultation record yet"' : ''}>
+                        <i class="bi bi-clock-history me-1"></i>History
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('queue-table-wrap').classList.remove('d-none');
+    } catch (e) {
+        document.getElementById('queue-loading').classList.add('d-none');
+        showToast('danger', 'Failed to load patients: ' + e.message);
+    }
+}
+
+// ─── Open Analysis modal ──────────────────────────────────────────────────────
+function openAnalysisModal(recordId, appointmentId, patientName) {
+    _selected = { recordId, appointmentId, patientName };
+
+    document.getElementById('modal-patient-name').textContent = patientName;
+    document.getElementById('test-search').value = '';
+    document.getElementById('test-id').value = '';
+    document.getElementById('test-price-hint').textContent = '';
+    document.getElementById('lab-urgency').value = 'ROUTINE';
+    document.getElementById('lab-instructions').value = '';
+    hideDrop('test-drop');
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('analysisModal')).show();
+}
+
+// ─── Test autocomplete ────────────────────────────────────────────────────────
+let _testTimer = null;
+function debounceTest(inp) {
+    clearTimeout(_testTimer);
+    document.getElementById('test-id').value = '';
+    document.getElementById('test-price-hint').textContent = '';
+    const q = inp.value.trim();
+    if (q.length < 2) { hideDrop('test-drop'); return; }
+    _testTimer = setTimeout(() => searchTest(q), 280);
+}
+async function searchTest(q) {
+    try {
+        const r = await fetch('/doctor/api/catalogue/lab/search?q=' + encodeURIComponent(q));
+        const items = await r.json();
+        const drop = document.getElementById('test-drop');
+        drop.innerHTML = items.map(i =>
+            `<div class="ac-item" data-id="${i.id}" data-name="${esc(i.name)}" data-price="${i.price || 0}">
+                <strong>${esc(i.name)}</strong>
+                <small class="text-muted ms-1">${esc(i.productCode || i.classification || '')}</small>
+                <span class="float-end text-success small">${fmtTZS(i.price || 0)}</span>
+            </div>`
+        ).join('');
+        drop.querySelectorAll('.ac-item').forEach(el => el.addEventListener('click', () => {
+            document.getElementById('test-search').value = el.dataset.name;
+            document.getElementById('test-id').value    = el.dataset.id;
+            document.getElementById('test-price-hint').textContent =
+                'Price: ' + fmtTZS(el.dataset.price || 0);
+            hideDrop('test-drop');
+        }));
+        drop.style.display = items.length ? 'block' : 'none';
+    } catch (e) { console.error(e); }
+}
+document.addEventListener('click', e => {
+    if (!e.target.closest('#test-search') && !e.target.closest('#test-drop'))
+        hideDrop('test-drop');
+});
+function hideDrop(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+
+// ─── Save lab request ─────────────────────────────────────────────────────────
+async function saveLabRequest() {
+    if (!_selected) return;
+
+    const testSearch  = document.getElementById('test-search').value.trim();
+    const priceItemId = document.getElementById('test-id').value.trim();
+    if (!testSearch) {
+        showToast('warning', 'Please select a test from the lab catalogue.');
+        return;
+    }
+
+    // Auto-create consultation record if needed
+    let recordId = _selected.recordId;
+    if (!recordId || recordId === 'null') {
+        if (!_selected.appointmentId || _selected.appointmentId === 'null') {
+            showToast('warning', 'Cannot resolve consultation record — missing appointment.');
+            return;
+        }
+        try {
+            const ensureRes = await fetch('/doctor/api/appointments/' + _selected.appointmentId + '/ensure-record', {
+                method: 'POST'
+            });
+            const ensureData = await ensureRes.json();
+            if (!ensureRes.ok || !ensureData.recordId) throw new Error(ensureData.message || 'Failed');
+            recordId = ensureData.recordId;
+            _selected.recordId = recordId;
+        } catch (e) {
+            showToast('danger', 'Could not create consultation record: ' + e.message);
+            return;
+        }
+    }
+
+    const btn = document.getElementById('btn-analysis-save');
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/doctor/api/lab/' + recordId + '/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                priceItemId:  priceItemId || null,
+                testName:     testSearch,
+                urgency:      document.getElementById('lab-urgency').value,
+                instructions: document.getElementById('lab-instructions').value.trim() || null
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Failed to save lab request');
+
+        showToast('success', data.testName + ' (' + data.urgency + ') request saved.');
+        bootstrap.Modal.getInstance(document.getElementById('analysisModal')).hide();
+        loadQueue();
+    } catch (e) {
+        showToast('danger', 'Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+// ─── Lab History modal ────────────────────────────────────────────────────────
+const URG_BADGE = {
+    ROUTINE: 'bg-success',
+    URGENT:  'bg-warning text-dark',
+    STAT:    'bg-danger'
+};
+const STATUS_BADGE = {
+    PENDING:     ['bg-secondary',       'Pending'],
+    IN_PROGRESS: ['bg-info text-dark',  'In Progress'],
+    COMPLETED:   ['bg-success',         'Completed'],
+    CANCELLED:   ['bg-dark',            'Cancelled']
+};
+const INTERP_BADGE = {
+    NORMAL:    'bg-success',
+    ABNORMAL:  'bg-warning text-dark',
+    CRITICAL:  'bg-danger',
+    PENDING:   'bg-secondary'
+};
+
+async function openLabHistoryModal(recordId, patientName) {
+    if (!recordId || recordId === 'null') return;
+
+    document.getElementById('lab-history-patient-name').textContent = patientName;
+    document.getElementById('lab-history-loading').classList.remove('d-none');
+    document.getElementById('lab-history-empty').classList.add('d-none');
+    document.getElementById('lab-history-content').classList.add('d-none');
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('labHistoryModal')).show();
+
+    try {
+        const r = await fetch('/doctor/api/lab/' + recordId + '/history');
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        const list = await r.json();
+
+        document.getElementById('lab-history-loading').classList.add('d-none');
+
+        if (!list.length) {
+            document.getElementById('lab-history-empty').classList.remove('d-none');
+            return;
+        }
+
+        document.getElementById('lab-history-tbody').innerHTML = list.map((lr, i) => {
+            const [stClass, stLabel] = STATUS_BADGE[lr.status] || ['bg-secondary', lr.status];
+            const urgClass = URG_BADGE[lr.urgency] || 'bg-secondary';
+            const res = lr.result;
+            const interpClass = res ? (INTERP_BADGE[res.interpretation] || 'bg-secondary') : '';
+            return `<tr>
+                <td><span class="badge bg-success-subtle text-success">${i + 1}</span></td>
+                <td class="fw-semibold">${esc(lr.testName)}</td>
+                <td><span class="badge ${urgClass}">${lr.urgency}</span></td>
+                <td class="small text-muted">${esc(lr.instructions) || '—'}</td>
+                <td><span class="badge ${stClass}">${stLabel}</span></td>
+                <td class="small text-muted">${fmtTime(lr.requestedAt)}</td>
+                <td class="small">${res ? esc(res.performedBy) : '—'}</td>
+                <td class="small">
+                    ${res
+                        ? `<span class="badge ${interpClass} me-1">${res.interpretation}</span>
+                           ${esc(res.resultValue || '')} ${esc(res.unit || '')}`
+                        : '—'}
+                </td>
+                <td class="small">${res && res.verifiedBy !== '—' ? esc(res.verifiedBy) : '—'}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('lab-history-content').classList.remove('d-none');
+    } catch (e) {
+        document.getElementById('lab-history-loading').classList.add('d-none');
+        showToast('danger', 'Could not load history: ' + e.message);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadQueue);
+</script>
+
+<th:block th:replace="~{doctor/fragments :: scripts}"></th:block>
+</body>
+</html>

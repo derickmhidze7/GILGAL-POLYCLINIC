@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{doctor/fragments :: head('Patient Journey')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{doctor/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{doctor/fragments :: topbar('Patient Journey')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{doctor/fragments :: alerts}"></th:block>
+
+            <!-- Back + header -->
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div class="d-flex align-items-center gap-3">
+                    <a href="/doctor/my-patients" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i>
+                    </a>
+                    <div>
+                        <h5 class="fw-bold mb-0">
+                            <i class="bi bi-clock-history text-info me-2"></i>
+                            <span th:text="${patient.firstName + ' ' + patient.lastName}">Patient Name</span>
+                        </h5>
+                        <small class="text-muted"
+                               th:text="'ID: ' + ${patient.nationalId} + '  ·  ' +
+                                        (${patient.gender} != null ? ${patient.gender} : '') + '  ·  ' +
+                                        (${patient.dateOfBirth} != null ? 'DOB: ' + ${#temporals.format(patient.dateOfBirth, 'dd MMM yyyy')} : '')">
+                        </small>
+                    </div>
+                </div>
+                <!-- Quick stats badges -->
+                <div class="d-flex gap-2 flex-wrap">
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-3 py-2">
+                        <i class="bi bi-journal-medical me-1"></i>
+                        <span th:text="${#lists.size(records)}">0</span> Visits
+                    </span>
+                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2">
+                        <i class="bi bi-flask me-1"></i>
+                        <span th:text="${#lists.size(labRequests)}">0</span> Lab Tests
+                    </span>
+                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-3 py-2">
+                        <i class="bi bi-capsule me-1"></i>
+                        <span th:text="${#lists.size(prescriptions)}">0</span> Prescriptions
+                    </span>
+                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-3 py-2">
+                        <i class="bi bi-hospital me-1"></i>
+                        <span th:text="${#lists.size(admissions)}">0</span> Admissions
+                    </span>
+                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-3 py-2">
+                        <i class="bi bi-scissors me-1"></i>
+                        <span th:text="${#lists.size(surgeries)}">0</span> Surgeries
+                    </span>
+                </div>
+            </div>
+
+            <!-- Tab navigation -->
+            <ul class="nav nav-tabs mb-4" id="journeyTabs">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#tab-overview">
+                        <i class="bi bi-person-circle me-1"></i>Patient Info
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-visits">
+                        <i class="bi bi-journal-medical me-1"></i>Visits
+                        <span class="badge bg-primary ms-1" th:text="${#lists.size(records)}">0</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-labs">
+                        <i class="bi bi-flask me-1"></i>Lab Tests
+                        <span class="badge bg-success ms-1" th:text="${#lists.size(labRequests)}">0</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-prescriptions">
+                        <i class="bi bi-capsule me-1"></i>Prescriptions
+                        <span class="badge bg-warning text-dark ms-1" th:text="${#lists.size(prescriptions)}">0</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-admissions">
+                        <i class="bi bi-hospital me-1"></i>Admissions
+                        <span class="badge bg-info text-dark ms-1" th:text="${#lists.size(admissions)}">0</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-surgeries">
+                        <i class="bi bi-scissors me-1"></i>Surgeries
+                        <span class="badge bg-danger ms-1" th:text="${#lists.size(surgeries)}">0</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+
+                <!-- ═══ TAB 1: PATIENT INFO ═══════════════════════════════════ -->
+                <div class="tab-pane fade show active" id="tab-overview">
+                    <div class="row g-3">
+                        <!-- Demographics -->
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-header bg-white fw-semibold">
+                                    <i class="bi bi-person-fill me-2 text-primary"></i>Demographics
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tr>
+                                            <td class="text-muted" style="width:40%">Full Name</td>
+                                            <td class="fw-semibold"
+                                                th:text="${patient.firstName + ' ' + (patient.middleName != null ? patient.middleName + ' ' : '') + patient.lastName}">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">National ID</td>
+                                            <td th:text="${patient.nationalId}">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Date of Birth</td>
+                                            <td th:text="${patient.dateOfBirth != null ? #temporals.format(patient.dateOfBirth, 'dd MMM yyyy') : '—'}">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Gender</td>
+                                            <td th:text="${patient.gender}">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Phone</td>
+                                            <td th:text="${patient.phone != null ? patient.phone : '—'}">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Email</td>
+                                            <td th:text="${patient.email != null ? patient.email : '—'}">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Blood Group</td>
+                                            <td>
+                                                <span th:if="${patient.bloodGroup != null}"
+                                                      class="badge bg-danger"
+                                                      th:text="${patient.bloodGroup}">—</span>
+                                                <span th:if="${patient.bloodGroup == null}" class="text-muted">—</span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Marital Status</td>
+                                            <td th:text="${patient.maritalStatus != null ? patient.maritalStatus : '—'}">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Occupation</td>
+                                            <td th:text="${patient.occupation != null ? patient.occupation : '—'}">—</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Medical & Insurance -->
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm mb-3">
+                                <div class="card-header bg-white fw-semibold">
+                                    <i class="bi bi-shield-fill-check me-2 text-success"></i>Medical Alerts
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-1">Known Allergies</p>
+                                    <div th:if="${patient.allergies != null and not #lists.isEmpty(patient.allergies)}">
+                                        <span th:each="a : ${patient.allergies}"
+                                              class="badge bg-danger me-1 mb-1" th:text="${a}">—</span>
+                                    </div>
+                                    <p th:if="${patient.allergies == null or #lists.isEmpty(patient.allergies)}"
+                                       class="text-muted fst-italic mb-0">No known allergies recorded</p>
+                                </div>
+                            </div>
+                            <div class="card border-0 shadow-sm mb-3">
+                                <div class="card-header bg-white fw-semibold">
+                                    <i class="bi bi-credit-card me-2 text-info"></i>Insurance
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tr>
+                                            <td class="text-muted" style="width:45%">Provider</td>
+                                            <td th:text="${patient.insuranceProvider != null ? patient.insuranceProvider : '—'}">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Policy #</td>
+                                            <td th:text="${patient.insurancePolicyNumber != null ? patient.insurancePolicyNumber : '—'}">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Member #</td>
+                                            <td th:text="${patient.insuranceMemberNumber != null ? patient.insuranceMemberNumber : '—'}">—</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="card border-0 shadow-sm" th:if="${patient.nextOfKin != null}">
+                                <div class="card-header bg-white fw-semibold">
+                                    <i class="bi bi-person-heart me-2 text-warning"></i>Next of Kin
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tr>
+                                            <td class="text-muted" style="width:45%">Name</td>
+                                            <td th:text="${patient.nextOfKin.name != null ? patient.nextOfKin.name : '—'}">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Relationship</td>
+                                            <td th:text="${patient.nextOfKin.relationship != null ? patient.nextOfKin.relationship : '—'}">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Phone</td>
+                                            <td th:text="${patient.nextOfKin.phone != null ? patient.nextOfKin.phone : '—'}">—</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ TAB 2: VISITS / CONSULTATIONS ════════════════════════ -->
+                <div class="tab-pane fade" id="tab-visits">
+                    <div th:if="${#lists.isEmpty(records)}" class="text-center text-muted py-5">
+                        <i class="bi bi-journal-x fs-2 d-block mb-2"></i>No consultation records found.
+                    </div>
+                    <div th:each="rec : ${records}" class="card border-0 shadow-sm mb-3">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <span class="fw-semibold"
+                                      th:text="${rec.visitDate != null ? #temporals.format(rec.visitDate, 'dd MMM yyyy HH:mm') : 'Date unknown'}">—</span>
+                                <span class="text-muted small ms-2"
+                                      th:text="'Dr. ' + ${rec.attendingDoctor.firstName + ' ' + rec.attendingDoctor.lastName}">—</span>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center">
+                                <span class="badge"
+                                      th:classappend="${rec.consultationStatus.name() == 'FINALIZED'} ? 'bg-success'
+                                                    : (${rec.consultationStatus.name() == 'LOCKED'} ? 'bg-secondary'
+                                                    : 'bg-warning text-dark')"
+                                      th:text="${rec.consultationStatus}">—</span>
+                                <span th:if="${rec.nextStep != null}"
+                                      class="badge bg-info text-dark"
+                                      th:text="${rec.nextStep}">—</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <p class="text-muted small mb-1">Chief Complaint</p>
+                                    <p class="mb-2" th:text="${rec.chiefComplaints != null ? rec.chiefComplaints : '—'}">—</p>
+                                    <p class="text-muted small mb-1">Provisional Diagnosis</p>
+                                    <p class="mb-2 fw-semibold" th:text="${rec.provisionalDiagnosis != null ? rec.provisionalDiagnosis : '—'}">—</p>
+                                    <p class="text-muted small mb-1">Final Diagnosis</p>
+                                    <p class="mb-0" th:text="${rec.finalDiagnosis != null ? rec.finalDiagnosis : '—'}">—</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="text-muted small mb-1">Clinical Notes</p>
+                                    <p class="mb-2" th:text="${rec.clinicalNotes != null ? rec.clinicalNotes : '—'}">—</p>
+                                    <p class="text-muted small mb-1">Treatment Plan</p>
+                                    <p class="mb-0" th:text="${rec.treatmentPlan != null ? rec.treatmentPlan : '—'}">—</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ TAB 3: LAB TESTS ══════════════════════════════════════ -->
+                <div class="tab-pane fade" id="tab-labs">
+                    <div th:if="${#lists.isEmpty(labRequests)}" class="text-center text-muted py-5">
+                        <i class="bi bi-flask fs-2 d-block mb-2"></i>No lab tests found.
+                    </div>
+                    <div class="card border-0 shadow-sm" th:if="${not #lists.isEmpty(labRequests)}">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Test</th>
+                                        <th>Date Requested</th>
+                                        <th>Urgency</th>
+                                        <th>Status</th>
+                                        <th>Findings / Result</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="lr : ${labRequests}">
+                                        <td class="fw-semibold" th:text="${lr.testName}">—</td>
+                                        <td th:text="${lr.createdAt != null ? #temporals.format(lr.createdAt, 'dd MMM yyyy') : '—'}">—</td>
+                                        <td>
+                                            <span class="badge"
+                                                  th:classappend="${lr.urgency.name() == 'STAT'} ? 'bg-danger'
+                                                                : (${lr.urgency.name() == 'URGENT'} ? 'bg-warning text-dark'
+                                                                : 'bg-secondary')"
+                                                  th:text="${lr.urgency}">—</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge"
+                                                  th:classappend="${lr.status.name() == 'COMPLETED'} ? 'bg-success'
+                                                                : (${lr.status.name() == 'IN_PROGRESS'} ? 'bg-info text-dark'
+                                                                : (${lr.status.name() == 'CANCELLED'} ? 'bg-danger'
+                                                                : 'bg-warning text-dark'))"
+                                                  th:text="${lr.status}">—</span>
+                                        </td>
+                                        <td>
+                                            <!-- Show result summary or parameters if completed -->
+                                            <span th:if="${lr.resultSummary != null}"
+                                                  class="small" th:text="${lr.resultSummary}">—</span>
+                                            <span th:if="${lr.findings != null}"
+                                                  class="small d-block text-muted" th:text="${lr.findings}">—</span>
+                                            <span th:if="${lr.resultSummary == null and lr.findings == null and lr.status.name() == 'COMPLETED'}"
+                                                  class="small text-muted">Result available — see parameters</span>
+                                            <!-- Show key parameters inline if available -->
+                                            <div th:if="${lr.resultParameters != null and not #lists.isEmpty(lr.resultParameters)}"
+                                                 class="mt-1">
+                                                <span th:each="p, pStat : ${lr.resultParameters}"
+                                                      th:if="${pStat.index < 5}"
+                                                      class="badge bg-light text-dark border me-1 mb-1 small"
+                                                      th:text="${p.parameterName + ': ' + p.resultValue + (p.unit != null ? ' ' + p.unit : '')}">—</span>
+                                                <span th:if="${#lists.size(lr.resultParameters) > 5}"
+                                                      class="text-muted small"
+                                                      th:text="'+ ' + (${#lists.size(lr.resultParameters)} - 5) + ' more'">—</span>
+                                            </div>
+                                            <span th:if="${lr.resultSummary == null and lr.findings == null and lr.status.name() != 'COMPLETED'}"
+                                                  class="text-muted small fst-italic">Pending</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ TAB 4: PRESCRIPTIONS ══════════════════════════════════ -->
+                <div class="tab-pane fade" id="tab-prescriptions">
+                    <div th:if="${#lists.isEmpty(prescriptions)}" class="text-center text-muted py-5">
+                        <i class="bi bi-capsule fs-2 d-block mb-2"></i>No prescriptions found.
+                    </div>
+                    <div class="card border-0 shadow-sm" th:if="${not #lists.isEmpty(prescriptions)}">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Medication</th>
+                                        <th>Dosage</th>
+                                        <th>Frequency</th>
+                                        <th>Duration</th>
+                                        <th>Route</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="rx : ${prescriptions}">
+                                        <td class="fw-semibold" th:text="${rx.medicationName}">—</td>
+                                        <td th:text="${rx.dosage != null ? rx.dosage : '—'}">—</td>
+                                        <td th:text="${rx.frequency != null ? rx.frequency : '—'}">—</td>
+                                        <td th:text="${rx.duration != null ? rx.duration : '—'}">—</td>
+                                        <td th:text="${rx.route != null ? rx.route : '—'}">—</td>
+                                        <td>
+                                            <span class="badge"
+                                                  th:classappend="${rx.status.name() == 'DISPENSED'} ? 'bg-success'
+                                                                : (${rx.status.name() == 'CANCELLED'} ? 'bg-danger'
+                                                                : (${rx.status.name() == 'PARTIALLY_DISPENSED'} ? 'bg-warning text-dark'
+                                                                : 'bg-secondary'))"
+                                                  th:text="${rx.status}">—</span>
+                                        </td>
+                                        <td th:text="${rx.createdAt != null ? #temporals.format(rx.createdAt, 'dd MMM yyyy') : '—'}">—</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ TAB 5: ADMISSIONS ════════════════════════════════════ -->
+                <div class="tab-pane fade" id="tab-admissions">
+                    <div th:if="${#lists.isEmpty(admissions)}" class="text-center text-muted py-5">
+                        <i class="bi bi-hospital fs-2 d-block mb-2"></i>No ward admissions found.
+                    </div>
+                    <div th:each="adm : ${admissions}" class="card border-0 shadow-sm mb-3">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <span class="fw-semibold" th:text="${adm.ward != null ? adm.ward : 'Ward'}">Ward</span>
+                                <span class="text-muted small ms-2"
+                                      th:text="${adm.bedNumber != null ? 'Bed ' + adm.bedNumber : ''}">—</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge"
+                                      th:classappend="${adm.status.name() == 'ADMITTED' or adm.status.name() == 'STABLE'} ? 'bg-success'
+                                                    : (${adm.status.name() == 'CRITICAL'} ? 'bg-danger'
+                                                    : (${adm.status.name() == 'DISCHARGED'} ? 'bg-secondary'
+                                                    : 'bg-info text-dark'))"
+                                      th:text="${adm.status}">—</span>
+                                <span class="text-muted small"
+                                      th:text="${adm.admitDate != null ? 'Admitted: ' + #temporals.format(adm.admitDate, 'dd MMM yyyy') : ''}">—</span>
+                                <span th:if="${adm.dischargeDate != null}"
+                                      class="text-muted small"
+                                      th:text="'Discharged: ' + ${#temporals.format(adm.dischargeDate, 'dd MMM yyyy')}">—</span>
+                            </div>
+                        </div>
+                        <div class="card-body" th:if="${adm.admissionNotes != null}">
+                            <p class="text-muted small mb-1">Admission Notes</p>
+                            <p class="mb-0" th:text="${adm.admissionNotes}">—</p>
+                        </div>
+                        <div class="card-footer bg-white text-muted small"
+                             th:if="${adm.assignedByDoctor != null}">
+                            Admitted by Dr.
+                            <span th:text="${adm.assignedByDoctor.firstName + ' ' + adm.assignedByDoctor.lastName}">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ TAB 6: SURGERIES ═════════════════════════════════════ -->
+                <div class="tab-pane fade" id="tab-surgeries">
+                    <div th:if="${#lists.isEmpty(surgeries)}" class="text-center text-muted py-5">
+                        <i class="bi bi-scissors fs-2 d-block mb-2"></i>No surgeries found.
+                    </div>
+                    <div th:each="surg : ${surgeries}" class="card border-0 shadow-sm mb-3">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <span class="fw-semibold" th:text="${surg.procedureName}">Procedure</span>
+                                <span class="text-muted small ms-2" th:text="${surg.surgeryType != null ? '· ' + surg.surgeryType : ''}">—</span>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center">
+                                <span class="badge"
+                                      th:classappend="${surg.urgency.name() == 'EMERGENCY'} ? 'bg-danger'
+                                                    : (${surg.urgency.name() == 'URGENT'} ? 'bg-warning text-dark'
+                                                    : (${surg.urgency.name() == 'SEMI_URGENT'} ? 'bg-info text-dark'
+                                                    : 'bg-secondary'))"
+                                      th:text="${surg.urgency}">—</span>
+                                <span class="badge"
+                                      th:classappend="${surg.status.name() == 'COMPLETED'} ? 'bg-success'
+                                                    : (${surg.status.name() == 'IN_PROGRESS'} ? 'bg-info text-dark'
+                                                    : (${surg.status.name() == 'CANCELLED'} ? 'bg-danger'
+                                                    : 'bg-warning text-dark'))"
+                                      th:text="${surg.status}">—</span>
+                                <span class="text-muted small"
+                                      th:text="${surg.scheduledDate != null ? #temporals.format(surg.scheduledDate, 'dd MMM yyyy HH:mm') : 'No date set'}">—</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <p class="text-muted small mb-1">Anesthesia</p>
+                                    <p class="mb-0" th:text="${surg.anesthesiaType != null ? surg.anesthesiaType : '—'}">—</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <p class="text-muted small mb-1">Operating Theater</p>
+                                    <p class="mb-0" th:text="${surg.operatingTheater != null ? surg.operatingTheater : '—'}">—</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <p class="text-muted small mb-1">Duration</p>
+                                    <p class="mb-0"
+                                       th:text="${surg.actualDurationMinutes != null ? surg.actualDurationMinutes + ' min (actual)' :
+                                                  (surg.estimatedDurationMinutes != null ? surg.estimatedDurationMinutes + ' min (estimated)' : '—')}">—</p>
+                                </div>
+                                <div class="col-12" th:if="${surg.preopNotes != null}">
+                                    <p class="text-muted small mb-1">Pre-op Notes</p>
+                                    <p class="mb-0" th:text="${surg.preopNotes}">—</p>
+                                </div>
+                                <div class="col-12" th:if="${surg.postopNotes != null}">
+                                    <p class="text-muted small mb-1">Post-op Notes</p>
+                                    <p class="mb-0 text-success" th:text="${surg.postopNotes}">—</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-white text-muted small"
+                             th:if="${surg.requestingDoctor != null}">
+                            Requested by Dr.
+                            <span th:text="${surg.requestingDoctor.firstName + ' ' + surg.requestingDoctor.lastName}">—</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- end tab-content -->
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{doctor/fragments :: scripts}"></th:block>
+</body>
+</html>

@@ -1,0 +1,63 @@
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+# =============================================
+#  SENSITIVE — never commit these
+# =============================================
+
+# Local dev profile contains DB credentials as fallback defaults
+src/main/resources/application-dev.properties
+
+# Production profile may contain real secrets if edited locally
+# (keep *.example files committed; ignore the real ones if they diverge)
+# src/main/resources/application-prod.properties  # uncomment if you add local secrets
+
+# Utility SQL scripts that contain credentials / password hashes
+setup_database.sql
+fix_admin_password.sql
+# Catch any other root-level one-off scripts
+/*.sql
+
+# Log files produced during startup/debugging
+*.log
+app_startup*.log
+
+# Environment variable files
+.env
+.env.local
+.env.*.local
+
+# OS metadata
+.DS_Store
+Thumbs.db

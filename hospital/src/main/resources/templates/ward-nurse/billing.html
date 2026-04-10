@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{ward-nurse/fragments :: head('Ward Bills')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{ward-nurse/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{ward-nurse/fragments :: topbar('Ward Bills')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{ward-nurse/fragments :: alerts}"></th:block>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white d-flex align-items-center justify-content-between">
+                    <span class="fw-semibold">
+                        <i class="bi bi-receipt me-2 text-primary"></i>Patient Unpaid Bills
+                    </span>
+                    <small class="text-muted">Showing currently admitted patients only</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient Name</th>
+                                <th>Ward / Bed</th>
+                                <th>Admit Date</th>
+                                <th>Ward Bill</th>
+                                <th>Outstanding Balance</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(patients)}">
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox fs-4 d-block mb-2"></i>No active patients.
+                                </td>
+                            </tr>
+                            <tr th:each="p, i : ${patients}">
+                                <td th:text="${i.count}">1</td>
+                                <td>
+                                    <div class="fw-semibold" th:text="${p.patientFullName}">—</div>
+                                </td>
+                                <td>
+                                    <span th:text="${p.ward ?: '—'}">—</span>
+                                    <small class="text-muted ms-1" th:text="${p.bedNumber != null ? '· Bed ' + p.bedNumber : ''}"></small>
+                                </td>
+                                <td>
+                                    <small th:text="${p.admitDate != null ? #temporals.format(p.admitDate, 'dd MMM yyyy') : '—'}">—</small>
+                                </td>
+                                <td>
+                                    <div th:if="${p.wardBillTotal != null}">
+                                        <span class="fw-semibold"
+                                              th:text="${'TZSh ' + #numbers.formatDecimal(p.wardBillTotal, 1, 'COMMA', 0, 'POINT')}">0</span>
+                                        <br/>
+                                        <span th:if="${p.wardBillStatus != null}"
+                                              th:class="${p.wardBillStatus.name() == 'PAID' ? 'badge bg-success' :
+                                                          (p.wardBillStatus.name() == 'PARTIALLY_PAID' ? 'badge bg-warning text-dark' :
+                                                          (p.wardBillStatus.name() == 'VOIDED' ? 'badge bg-secondary' :
+                                                          'badge bg-warning text-dark'))}"
+                                              th:text="${p.wardBillStatus.name()}">ISSUED</span>
+                                        <span th:unless="${p.wardBillStatus != null}" class="badge bg-light text-muted">N/A</span>
+                                    </div>
+                                    <span th:unless="${p.wardBillTotal != null}" class="text-muted">—</span>
+                                </td>
+                                <td>
+                                    <span th:if="${p.totalUnpaid != null and p.totalUnpaid.doubleValue() > 0}"
+                                          class="fw-bold text-danger"
+                                          th:text="${'TZSh ' + #numbers.formatDecimal(p.totalUnpaid, 1, 'COMMA', 0, 'POINT')}">0</span>
+                                    <span th:unless="${p.totalUnpaid != null and p.totalUnpaid.doubleValue() > 0}"
+                                          class="text-success fw-semibold">
+                                        <i class="bi bi-check-circle me-1"></i>Settled
+                                    </span>
+                                </td>
+                                <td>
+                                    <a th:href="@{/ward-nurse/billing/{id}(id=${p.assignmentId})}"
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye me-1"></i>View Bill
+                                    </a>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<th:block th:replace="~{ward-nurse/fragments :: scripts}"></th:block>
+</body>
+</html>

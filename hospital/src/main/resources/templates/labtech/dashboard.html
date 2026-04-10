@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{labtech/fragments :: head('Dashboard')}"></th:block>
+</head>
+<body>
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{labtech/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{labtech/fragments :: topbar('Lab Technician Dashboard')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{labtech/fragments :: alerts}"></th:block>
+
+            <!-- Stat Cards -->
+            <div class="row g-4 mb-4">
+                <div class="col-12 col-sm-6 col-xl-4">
+                    <div class="stat-card stat-card--blue">
+                        <div class="stat-card__icon"><i class="bi bi-flask-fill"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value"
+                                 th:text="${#lists.size(queue.?[statusName == 'PENDING'])}">0</div>
+                            <div class="stat-card__label">Ready (Paid)</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-4">
+                    <div class="stat-card stat-card--yellow" style="--card-color:#f59e0b">
+                        <div class="stat-card__icon"><i class="bi bi-hourglass-split"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value"
+                                 th:text="${#lists.size(queue.?[statusName == 'IN_PROGRESS'])}">0</div>
+                            <div class="stat-card__label">In Progress</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-4">
+                    <div class="stat-card" style="--card-color:#dc3545">
+                        <div class="stat-card__icon"><i class="bi bi-clock-history"></i></div>
+                        <div class="stat-card__body">
+                            <div class="stat-card__value"
+                                 th:text="${#lists.size(awaitingPayment)}">0</div>
+                            <div class="stat-card__label">Awaiting Payment</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Queue Table -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-flask-fill me-2 text-primary"></i>Lab Test Queue
+                    <span class="badge bg-primary ms-1" th:text="${#lists.size(queue)}">0</span>
+                    <small class="text-muted fw-normal ms-2">Paid — ready to process</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient</th>
+                                <th>Test</th>
+                                <th>Urgency</th>
+                                <th>Requested At</th>
+                                <th>Status</th>
+                                <th>Sample Quality</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(queue)}">
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-check-circle-fill me-2 text-success"></i>No pending lab requests.
+                                </td>
+                            </tr>
+                            <tr th:each="req, i : ${queue}">
+                                <td th:text="${i.count}">1</td>
+                                <td>
+                                    <span th:text="${req.patientFullName}">Patient</span>
+                                    <br/>
+                                    <small class="text-muted" th:text="${req.patientNationalId}"></small>
+                                </td>
+                                <td>
+                                    <strong th:text="${req.testName}">Test</strong>
+                                    <span th:if="${req.testCode != null}"
+                                          class="badge bg-light text-dark ms-1"
+                                          th:text="${req.testCode}"></span>
+                                </td>
+                                <td>
+                                    <span class="badge"
+                                          th:classappend="${req.urgencyName == 'STAT'} ? 'bg-danger'
+                                                        : (${req.urgencyName == 'URGENT'} ? 'bg-warning text-dark'
+                                                        : 'bg-secondary')"
+                                          th:text="${req.urgencyName}">ROUTINE</span>
+                                </td>
+                                <td th:text="${#temporals.format(req.requestedAt,'dd MMM yyyy HH:mm')}"></td>
+                                <td>
+                                    <span class="badge"
+                                          th:classappend="${req.statusName == 'IN_PROGRESS'} ? 'bg-info text-dark' : 'bg-secondary'"
+                                          th:text="${req.statusName}">PENDING</span>
+                                </td>
+                                <td>
+                                    <span th:if="${req.sampleQualityName != null}"
+                                          class="badge"
+                                          th:classappend="${req.sampleQualityName == 'ADEQUATE'} ? 'bg-success' : 'bg-danger'"
+                                          th:text="${req.sampleQualityName}"></span>
+                                    <span th:if="${req.sampleQualityName == null}" class="text-muted">-</span>
+                                </td>
+                                <td class="text-end">
+                                    <!-- Accept sample (PENDING only) -->
+                                    <!-- LEGACY: modal with sample type/quality fields -->
+                                    <button th:if="${req.statusName == 'PENDING' and req.source == 'LEGACY'}"
+                                            type="button"
+                                            class="btn btn-sm btn-outline-primary me-1"
+                                            data-bs-toggle="modal"
+                                            th:attr="data-bs-target='#acceptModal_' + ${req.id}">
+                                        <i class="bi bi-box-arrow-in-down me-1"></i>Accept
+                                    </button>
+                                    <!-- V26: simple confirm modal -->
+                                    <button th:if="${req.statusName == 'PENDING' and req.source == 'V26'}"
+                                            type="button"
+                                            class="btn btn-sm btn-outline-primary me-1"
+                                            data-bs-toggle="modal"
+                                            th:attr="data-bs-target='#acceptV26Modal_' + ${req.id}">
+                                        <i class="bi bi-box-arrow-in-down me-1"></i>Accept
+                                    </button>
+                                    <!-- Enter / Edit result -->
+                                    <a th:if="${req.source == 'LEGACY'}"
+                                       th:href="@{/labtech/request/{id}/result(id=${req.id})}"
+                                       class="btn btn-sm btn-primary">
+                                        <i class="bi bi-pencil-fill me-1"></i>
+                                        <span th:text="${req.hasResult} ? 'Edit Result' : 'Enter Result'">Result</span>
+                                    </a>
+                                    <a th:if="${req.source == 'V26'}"
+                                       th:href="@{/labtech/visit-request/{id}/result(id=${req.id})}"
+                                       class="btn btn-sm btn-primary">
+                                        <i class="bi bi-pencil-fill me-1"></i>
+                                        <span th:text="${req.hasResult} ? 'Edit Result' : 'Enter Result'">Result</span>
+                                    </a>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Awaiting Payment Table -->
+            <div class="card border-0 shadow-sm mt-4" th:if="${!#lists.isEmpty(awaitingPayment)}">
+                <div class="card-header bg-white fw-semibold text-danger">
+                    <i class="bi bi-clock-history me-2"></i>Awaiting Payment at Reception
+                    <span class="badge bg-danger ms-1" th:text="${#lists.size(awaitingPayment)}">0</span>
+                    <small class="text-muted fw-normal ms-2">These requests cannot be processed until the patient's lab invoice is paid</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient</th>
+                                <th>Test</th>
+                                <th>Urgency</th>
+                                <th>Requested At</th>
+                                <th>Status</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="req, i : ${awaitingPayment}">
+                                <td th:text="${i.count}">1</td>
+                                <td>
+                                    <span th:text="${req.patientFullName}">Patient</span>
+                                    <br/>
+                                    <small class="text-muted" th:text="${req.patientNationalId}"></small>
+                                </td>
+                                <td>
+                                    <strong th:text="${req.testName}">Test</strong>
+                                    <span th:if="${req.testCode != null}"
+                                          class="badge bg-light text-dark ms-1"
+                                          th:text="${req.testCode}"></span>
+                                </td>
+                                <td>
+                                    <span class="badge"
+                                          th:classappend="${req.urgencyName == 'STAT'} ? 'bg-danger'
+                                                        : (${req.urgencyName == 'URGENT'} ? 'bg-warning text-dark'
+                                                        : 'bg-secondary')"
+                                          th:text="${req.urgencyName}">ROUTINE</span>
+                                </td>
+                                <td th:text="${#temporals.format(req.requestedAt,'dd MMM yyyy HH:mm')}"></td>
+                                <td>
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="bi bi-hourglass me-1"></i>Awaiting Payment
+                                    </span>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- LEGACY Accept Sample Modals -->
+<div th:each="req : ${queue}">
+    <div th:if="${req.statusName == 'PENDING' and req.source == 'LEGACY'}"
+         class="modal fade"
+         th:id="'acceptModal_' + ${req.id}"
+         tabindex="-1">
+        <div class="modal-dialog">
+            <form th:action="@{/labtech/request/{id}/accept(id=${req.id})}" method="post">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Accept Sample</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Patient: <strong th:text="${req.patientFullName}"></strong></p>
+                        <p>Test: <strong th:text="${req.testName}"></strong></p>
+                        <div class="mb-3">
+                            <label class="form-label">Sample Type</label>
+                            <input type="text" name="sampleType" class="form-control"
+                                   placeholder="e.g. Blood, Urine, Swab..."/>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Sample Quality</label>
+                            <select name="sampleQuality" class="form-select">
+                                <option value="ADEQUATE">ADEQUATE</option>
+                                <option value="INADEQUATE">INADEQUATE</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Accept Sample</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- V26 Accept Request Modals (simple confirm) -->
+<div th:each="req : ${queue}">
+    <div th:if="${req.statusName == 'PENDING' and req.source == 'V26'}"
+         class="modal fade"
+         th:id="'acceptV26Modal_' + ${req.id}"
+         tabindex="-1">
+        <div class="modal-dialog">
+            <form th:action="@{/labtech/visit-request/{id}/accept(id=${req.id})}" method="post">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Accept Lab Request</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Patient: <strong th:text="${req.patientFullName}"></strong></p>
+                        <p>Test: <strong th:text="${req.testName}"></strong></p>
+                        <p class="text-muted small">Accepting will mark this request as <strong>In Progress</strong>.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Accept Request</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{labtech/fragments :: scripts}"></th:block>
+</body>
+</html>

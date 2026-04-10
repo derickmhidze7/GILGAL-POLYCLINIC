@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{receptionist/fragments :: head('Patient Profile')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{receptionist/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{receptionist/fragments :: topbar('Patient Profile')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{receptionist/fragments :: alerts}"></th:block>
+
+            <!-- Back button -->
+            <div class="mb-3">
+                <a th:href="@{/receptionist/patients}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Back to Patients
+                </a>
+            </div>
+
+            <!-- Patient Info Card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                        <i class="bi bi-person-fill fs-4 text-success"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0 fw-bold" th:text="${patient.firstName + (patient.middleName != null ? ' ' + patient.middleName : '') + ' ' + patient.lastName}">Name</h5>
+                        <small class="text-muted" th:text="${'ID: ' + (patient.nationalId != null ? patient.nationalId : 'N/A')}"></small>
+                    </div>
+                    <div class="ms-auto d-flex align-items-center gap-2">
+                        <span th:if="${patient.active}" class="badge bg-success fs-6">Active</span>
+                        <span th:unless="${patient.active}" class="badge bg-secondary fs-6">Inactive</span>
+                        <form th:action="@{/receptionist/patients/{id}/send-to-triage(id=${patient.id})}" method="post" class="d-inline">
+                            <input type="hidden" name="returnTo" value="profile"/>
+                            <button type="submit" class="btn btn-warning btn-sm text-white">
+                                <i class="bi bi-clipboard2-pulse-fill me-1"></i>Send to Triage
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                <div class="card-body">
+
+                    <!-- Personal Details -->
+                    <h6 class="text-muted text-uppercase fw-semibold mb-2 mt-1" style="font-size:0.75rem;letter-spacing:.06em;">
+                        <i class="bi bi-person me-1"></i>Personal Details
+                    </h6>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Date of Birth</small>
+                            <strong th:text="${patient.dateOfBirth != null ? #temporals.format(patient.dateOfBirth, 'dd MMM yyyy') : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Age</small>
+                            <strong th:text="${patient.age > 0 ? patient.age + ' yrs' : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Gender</small>
+                            <strong th:text="${patient.gender != null ? #strings.capitalize(#strings.toLowerCase(patient.gender.name())) : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Marital Status</small>
+                            <strong th:text="${patient.maritalStatus != null ? #strings.capitalize(#strings.toLowerCase(patient.maritalStatus.name())) : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">National ID</small>
+                            <strong th:text="${patient.nationalId != null ? patient.nationalId : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Occupation</small>
+                            <strong th:text="${patient.occupation != null ? patient.occupation : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Phone</small>
+                            <strong th:text="${patient.phone != null ? patient.phone : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Email</small>
+                            <strong th:text="${patient.email != null ? patient.email : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Registered On</small>
+                            <strong th:text="${patient.registrationDate != null ? #temporals.format(patient.registrationDate, 'dd MMM yyyy') : '—'}">—</strong>
+                        </div>
+                    </div>
+
+                    <hr class="my-2"/>
+
+                    <!-- Current Address -->
+                    <h6 class="text-muted text-uppercase fw-semibold mb-2" style="font-size:0.75rem;letter-spacing:.06em;">
+                        <i class="bi bi-geo-alt me-1"></i>Current Address
+                    </h6>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Street</small>
+                            <strong th:text="${patient.addressStreet != null ? patient.addressStreet : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">City</small>
+                            <strong th:text="${patient.addressCity != null ? patient.addressCity : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Province / Region</small>
+                            <strong th:text="${patient.addressProvince != null ? patient.addressProvince : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Country</small>
+                            <strong th:text="${patient.addressCountry != null ? patient.addressCountry : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Postal Code</small>
+                            <strong th:text="${patient.addressPostalCode != null ? patient.addressPostalCode : '—'}">—</strong>
+                        </div>
+                    </div>
+
+                    <hr class="my-2"/>
+
+                    <!-- Permanent Address -->
+                    <h6 class="text-muted text-uppercase fw-semibold mb-2" style="font-size:0.75rem;letter-spacing:.06em;">
+                        <i class="bi bi-house me-1"></i>Permanent Address
+                    </h6>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Street</small>
+                            <strong th:text="${patient.permStreet != null ? patient.permStreet : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">City</small>
+                            <strong th:text="${patient.permCity != null ? patient.permCity : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Province / Region</small>
+                            <strong th:text="${patient.permProvince != null ? patient.permProvince : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Country</small>
+                            <strong th:text="${patient.permCountry != null ? patient.permCountry : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Postal Code</small>
+                            <strong th:text="${patient.permPostalCode != null ? patient.permPostalCode : '—'}">—</strong>
+                        </div>
+                    </div>
+
+                    <hr class="my-2"/>
+
+                    <!-- Next of Kin -->
+                    <h6 class="text-muted text-uppercase fw-semibold mb-2" style="font-size:0.75rem;letter-spacing:.06em;">
+                        <i class="bi bi-people me-1"></i>Next of Kin
+                    </h6>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Full Name</small>
+                            <strong th:text="${patient.nokFullName != null ? patient.nokFullName : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Relationship</small>
+                            <strong th:text="${patient.nokRelationship != null ? patient.nokRelationship : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Phone</small>
+                            <strong th:text="${patient.nokPhone != null ? patient.nokPhone : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Email</small>
+                            <strong th:text="${patient.nokEmail != null ? patient.nokEmail : '—'}">—</strong>
+                        </div>
+                    </div>
+
+                    <hr class="my-2"/>
+
+                    <!-- Insurance -->
+                    <h6 class="text-muted text-uppercase fw-semibold mb-2" style="font-size:0.75rem;letter-spacing:.06em;">
+                        <i class="bi bi-shield-check me-1"></i>Insurance
+                    </h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Insurance Provider</small>
+                            <strong th:text="${patient.insuranceProvider != null ? patient.insuranceProvider : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Policy Number</small>
+                            <strong th:text="${patient.insurancePolicyNumber != null ? patient.insurancePolicyNumber : '—'}">—</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Member Number</small>
+                            <strong th:text="${patient.insuranceMemberNumber != null ? patient.insuranceMemberNumber : '—'}">—</strong>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Tabs: Appointments | Invoices | Triage -->
+            <ul class="nav nav-tabs mb-3" id="profileTabs">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#appointmentsTab">
+                        <i class="bi bi-calendar-check me-1"></i>Appointments
+                        <span class="badge bg-secondary ms-1" th:text="${#lists.size(appointments)}">0</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#invoicesTab">
+                        <i class="bi bi-receipt me-1"></i>Invoices
+                        <span class="badge bg-secondary ms-1" th:text="${#lists.size(invoices)}">0</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#triageTab">
+                        <i class="bi bi-clipboard2-pulse me-1"></i>Triage History
+                        <span class="badge bg-secondary ms-1" th:text="${triageHistory != null ? #lists.size(triageHistory) : 0}">0</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+                <!-- Appointments Tab -->
+                <div class="tab-pane fade show active" id="appointmentsTab">
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <span class="fw-semibold"><i class="bi bi-calendar-check me-2"></i>Appointment History</span>
+                            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#bookApptModal">
+                                <i class="bi bi-calendar-plus me-1"></i>Book Appointment
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                    <tr>
+                                        <th>Date &amp; Time</th>
+                                        <th>Doctor</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr th:each="appt : ${appointments}">
+                                        <td th:text="${#temporals.format(appt.scheduledDateTime, 'dd MMM yyyy HH:mm')}">—</td>
+                                        <td th:text="${appt.doctorFullName != null ? appt.doctorFullName : 'Unassigned'}">—</td>
+                                        <td th:text="${appt.appointmentType}">—</td>
+                                        <td>
+                                            <span th:classappend="${appt.status.name() == 'SCHEDULED'} ? 'badge bg-primary' :
+                                                                  (${appt.status.name() == 'CONFIRMED'} ? 'badge bg-success' :
+                                                                  (${appt.status.name() == 'CANCELLED'} ? 'badge bg-danger' :
+                                                                  (${appt.status.name() == 'COMPLETED'} ? 'badge bg-secondary' : 'badge bg-warning')))"
+                                                  th:text="${appt.status}">—</span>
+                                        </td>
+                                        <td th:text="${appt.notes != null ? appt.notes : '—'}">—</td>
+                                    </tr>
+                                    <tr th:if="${#lists.isEmpty(appointments)}">
+                                        <td colspan="5" class="text-center text-muted py-3">No appointments found.</td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Invoices Tab -->
+                <div class="tab-pane fade" id="invoicesTab">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <span class="fw-semibold"><i class="bi bi-receipt me-2"></i>Invoice History</span>
+                            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#createInvoiceModal">
+                                <i class="bi bi-plus-circle me-1"></i>New Invoice
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                    <tr>
+                                        <th>Invoice #</th>
+                                        <th>Date</th>
+                                        <th>Due Date</th>
+                                        <th>Total</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr th:each="inv : ${invoices}">
+                                        <td th:text="${inv.invoiceNumber}">—</td>
+                                        <td th:text="${inv.invoiceDate != null ? #temporals.format(inv.invoiceDate, 'dd MMM yyyy') : '—'}">—</td>
+                                        <td th:text="${inv.dueDate != null ? #temporals.format(inv.dueDate, 'dd MMM yyyy') : '—'}">—</td>
+                                        <td th:text="${inv.totalAmount != null ? '$' + inv.totalAmount : '$0.00'}">—</td>
+                                        <td>
+                                            <span th:classappend="${inv.status.name() == 'PAID'} ? 'badge bg-success' :
+                                                                  (${inv.status.name() == 'ISSUED'} ? 'badge bg-primary' :
+                                                                  (${inv.status.name() == 'VOIDED'} ? 'badge bg-danger' :
+                                                                  (${inv.status.name() == 'PARTIALLY_PAID'} ? 'badge bg-warning' : 'badge bg-secondary')))"
+                                                  th:text="${inv.status}">—</span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-success"
+                                                    data-bs-toggle="modal" data-bs-target="#paymentModal"
+                                                    th:data-invoice-id="${inv.id}"
+                                                    th:data-invoice-number="${inv.invoiceNumber}"
+                                                    onclick="preparePayment(this)">
+                                                <i class="bi bi-credit-card me-1"></i>Pay
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr th:if="${#lists.isEmpty(invoices)}">
+                                        <td colspan="6" class="text-center text-muted py-3">No invoices found.</td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Triage History Tab -->
+                <div class="tab-pane fade" id="triageTab">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <span class="fw-semibold"><i class="bi bi-clipboard2-pulse me-2"></i>Triage History</span>
+                            <form th:action="@{/receptionist/patients/{id}/send-to-triage(id=${patient.id})}" method="post" class="d-inline">
+                                <input type="hidden" name="returnTo" value="profile"/>
+                                <button type="submit" class="btn btn-sm btn-warning text-white">
+                                    <i class="bi bi-clipboard2-pulse me-1"></i>Send to Triage
+                                </button>
+                            </form>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                    <tr>
+                                        <th>Date &amp; Time</th>
+                                        <th>Nurse</th>
+                                        <th>Priority</th>
+                                        <th>Chief Complaint</th>
+                                        <th>Temp (°C)</th>
+                                        <th>BP</th>
+                                        <th>Pulse</th>
+                                        <th>O₂ Sat (%)</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr th:each="t : ${triageHistory}">
+                                        <td th:text="${#temporals.format(t.assessmentDateTime, 'dd MMM yyyy HH:mm')}">—</td>
+                                        <td th:text="${t.nurseFullName}">—</td>
+                                        <td>
+                                            <span th:classappend="${t.triagePriority.name() == 'IMMEDIATE'} ? 'badge bg-danger' :
+                                                                  (${t.triagePriority.name() == 'URGENT'} ? 'badge bg-warning text-dark' :
+                                                                  (${t.triagePriority.name() == 'LESS_URGENT'} ? 'badge bg-info text-dark' : 'badge bg-secondary'))"
+                                                  th:text="${t.triagePriority}">—</span>
+                                        </td>
+                                        <td th:text="${t.chiefComplaint}">—</td>
+                                        <td th:text="${t.temperature != null ? t.temperature : '—'}">—</td>
+                                        <td th:text="${(t.bloodPressureSystolic != null and t.bloodPressureDiastolic != null) ? t.bloodPressureSystolic + '/' + t.bloodPressureDiastolic : '—'}">—</td>
+                                        <td th:text="${t.pulseRate != null ? t.pulseRate : '—'}">—</td>
+                                        <td th:text="${t.oxygenSaturation != null ? t.oxygenSaturation : '—'}">—</td>
+                                    </tr>
+                                    <tr th:if="${triageHistory == null or #lists.isEmpty(triageHistory)}">
+                                        <td colspan="8" class="text-center text-muted py-3">No triage records found.</td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Book Appointment Modal -->
+<div class="modal fade" id="bookApptModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-calendar-plus me-2"></i>Book Appointment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="@{/receptionist/appointments}" method="post">
+                <input type="hidden" name="patientId" th:value="${patient.id}"/>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Patient</label>
+                        <input type="text" class="form-control" readonly
+                               th:value="${patient.firstName + ' ' + patient.lastName}"/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Doctor</label>
+                        <select class="form-select" name="doctorId">
+                            <option value="">— Unassigned —</option>
+                            <option th:each="d : ${doctors}"
+                                    th:value="${d.id}"
+                                    th:text="${d.firstName + ' ' + d.lastName + ' (' + d.staffRole + ')'}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Date &amp; Time <span class="text-danger">*</span></label>
+                        <input type="datetime-local" class="form-control" name="scheduledDateTime" required/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Type <span class="text-danger">*</span></label>
+                        <select class="form-select" name="appointmentType" required>
+                            <option th:each="t : ${appointmentTypes}" th:value="${t}" th:text="${t}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-calendar-check me-2"></i>Book
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Create Invoice Modal -->
+<div class="modal fade" id="createInvoiceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-receipt me-2"></i>Create Invoice</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="@{/receptionist/billing}" method="post">
+                <input type="hidden" name="patientId" th:value="${patient.id}"/>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Patient</label>
+                        <input type="text" class="form-control" readonly
+                               th:value="${patient.firstName + ' ' + patient.lastName}"/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Due Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" name="dueDate" required/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-receipt me-2"></i>Create Invoice
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Record Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-credit-card me-2"></i>Record Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="paymentForm" method="post">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Invoice</label>
+                        <input type="text" class="form-control" id="paymentInvoiceLabel" readonly/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Amount <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" name="amount" step="0.01" min="0.01" required/>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Method <span class="text-danger">*</span></label>
+                        <select class="form-select" name="paymentMethod" required>
+                            <option th:each="pm : ${paymentMethods}" th:value="${pm}" th:text="${pm}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reference Number</label>
+                        <input type="text" class="form-control" name="reference"/>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle me-2"></i>Record Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Send to Triage Modal (Profile) -->
+<th:block th:replace="~{receptionist/fragments :: scripts}"></th:block>
+<script th:inline="javascript">
+    const ctxPath = /*[[@{/receptionist/billing/}]]*/ '/api/v1/receptionist/billing/';
+    function preparePayment(btn) {
+        const id = btn.getAttribute('data-invoice-id');
+        const num = btn.getAttribute('data-invoice-number');
+        document.getElementById('paymentInvoiceLabel').value = num;
+        document.getElementById('paymentForm').action = ctxPath + id + '/payment';
+    }
+</script>
+</body>
+</html>

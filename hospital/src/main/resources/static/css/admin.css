@@ -1,0 +1,535 @@
+/* ================================================================
+   Gilgal Polyclinic Admin — Custom CSS
+   Theme: White (#ffffff) + Green (#2e7d32 / #4caf50)
+   ================================================================ */
+
+/* ---------- CSS Variables ---------- */
+:root {
+    --primary:       #2e7d32;
+    --primary-light: #4caf50;
+    --primary-pale:  #e8f5e9;
+    --sidebar-w:     250px;
+    --sidebar-bg:    #1b5e20;
+    --topbar-h:      60px;
+    --radius:        8px;
+}
+
+/* ---------- Reset / Base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+    background: #f4f7f4;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #212121;
+    margin: 0;
+}
+
+/* ---------- Layout Wrapper ---------- */
+#wrapper {
+    min-height: 100vh;
+}
+
+/* ---------- SIDEBAR ---------- */
+#sidebar {
+    width: var(--sidebar-w);
+    min-height: 100vh;
+    background: var(--sidebar-bg);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.25s ease;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.sidebar-header {
+    padding: 24px 20px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+
+.sidebar-logo {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+}
+
+.sidebar-header small {
+    color: rgba(255,255,255,0.6);
+    font-size: 0.75rem;
+}
+
+.sidebar-nav {
+    flex: 1;
+    padding: 12px 0;
+    margin: 0;
+}
+
+.sidebar-nav li a {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+    color: rgba(255,255,255,0.75);
+    text-decoration: none;
+    font-size: 0.9rem;
+    border-left: 3px solid transparent;
+    transition: all 0.18s;
+}
+
+.sidebar-nav li a:hover {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border-left-color: var(--primary-light);
+}
+
+.sidebar-nav li.active a {
+    background: rgba(76,175,80,0.2);
+    color: #fff;
+    border-left-color: var(--primary-light);
+    font-weight: 600;
+}
+
+.sidebar-nav .nav-section {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.4);
+    padding: 16px 20px 4px;
+    text-transform: uppercase;
+}
+
+.sidebar-footer {
+    padding: 16px 20px;
+    border-top: 1px solid rgba(255,255,255,0.12);
+}
+
+.sidebar-user-info {
+    color: rgba(255,255,255,0.8);
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ---------- EXPENSE SIDEBAR SUBMENU ---------- */
+.sidebar-submenu {
+    padding: 0;
+    margin: 0;
+    background: rgba(0,0,0,0.18);
+}
+
+.sidebar-submenu li a {
+    display: flex;
+    align-items: center;
+    padding: 7px 20px 7px 42px;
+    color: rgba(255,255,255,0.65);
+    text-decoration: none;
+    font-size: 0.82rem;
+    border-left: 3px solid transparent;
+    transition: all 0.18s;
+}
+
+.sidebar-submenu li a:hover {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border-left-color: var(--primary-light);
+}
+
+.sidebar-submenu li.active a {
+    background: rgba(76,175,80,0.2);
+    color: #fff;
+    border-left-color: var(--primary-light);
+    font-weight: 600;
+}
+
+.submenu-chevron {
+    margin-left: auto;
+    font-size: 0.75rem;
+    transition: transform 0.25s;
+}
+
+.sidebar-nav li.submenu-parent.open > a > .submenu-chevron {
+    transform: rotate(180deg);
+}
+
+/* Sidebar collapse/drawer rules are in the responsive media queries below */
+
+/* ---------- PAGE CONTENT ---------- */
+#page-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* ---------- TOP BAR ---------- */
+.top-bar {
+    height: var(--topbar-h);
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 8px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.top-bar-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #212121;
+}
+
+.top-bar-user {
+    font-size: 0.85rem;
+    color: #555;
+}
+
+/* ---------- MAIN CONTENT ---------- */
+.main-content {
+    padding: 24px;
+    flex: 1;
+}
+
+/* ---------- STAT CARDS ---------- */
+.stat-card {
+    background: #fff;
+    border-radius: var(--radius);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    border-left: 4px solid transparent;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+.stat-card__icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+.stat-card__value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.stat-card__label {
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 4px;
+}
+
+/* Type variants */
+.stat-card--green  { border-left-color: #2e7d32; }
+.stat-card--green  .stat-card__icon { background: #e8f5e9; color: #2e7d32; }
+.stat-card--green  .stat-card__value { color: #2e7d32; }
+
+.stat-card--teal   { border-left-color: #00796b; }
+.stat-card--teal   .stat-card__icon { background: #e0f2f1; color: #00796b; }
+.stat-card--teal   .stat-card__value { color: #00796b; }
+
+.stat-card--blue   { border-left-color: #1565c0; }
+.stat-card--blue   .stat-card__icon { background: #e3f2fd; color: #1565c0; }
+.stat-card--blue   .stat-card__value { color: #1565c0; }
+
+.stat-card--orange { border-left-color: #e65100; }
+.stat-card--orange .stat-card__icon { background: #fff3e0; color: #e65100; }
+.stat-card--orange .stat-card__value { color: #e65100; }
+
+.stat-card--red    { border-left-color: #c62828; }
+.stat-card--red    .stat-card__icon { background: #ffebee; color: #c62828; }
+.stat-card--red    .stat-card__value { color: #c62828; }
+
+/* ---------- CARDS ---------- */
+.card { border-radius: var(--radius) !important; }
+.card-header {
+    border-radius: var(--radius) var(--radius) 0 0 !important;
+    background: #fff;
+    border-bottom: 1px solid #e8e8e8;
+    padding: 14px 20px;
+}
+
+/* ---------- TABLE ---------- */
+.table thead th {
+    background: var(--primary-pale);
+    color: var(--primary);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-color: #dcedc8;
+    white-space: nowrap;
+    padding: 10px 16px;
+}
+.table tbody td { padding: 10px 16px; vertical-align: middle; }
+.table-hover tbody tr:hover { background: var(--primary-pale); }
+
+/* ---------- BUTTONS ---------- */
+.btn-primary,
+.btn-success {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+.btn-primary:hover,
+.btn-success:hover {
+    background: #1b5e20;
+    border-color: #1b5e20;
+}
+.btn-outline-success {
+    color: var(--primary);
+    border-color: var(--primary);
+}
+.btn-outline-success:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+/* ---------- BADGES ---------- */
+.badge.bg-success { background-color: var(--primary) !important; }
+
+/* ---------- FORM CONTROLS ---------- */
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--primary-light);
+    box-shadow: 0 0 0 0.2rem rgba(76,175,80,0.25);
+}
+.input-group-text {
+    background: var(--primary-pale);
+    border-color: #ced4da;
+    color: var(--primary);
+}
+
+/* ---------- MODAL ---------- */
+.modal-header {
+    border-bottom: 1px solid #e8f5e9;
+    background: var(--primary-pale);
+}
+.modal-footer { border-top: 1px solid #e8f5e9; }
+
+/* ---------- ALERTS ---------- */
+.alert-success {
+    background: var(--primary-pale);
+    border-color: #a5d6a7;
+    color: #1b5e20;
+}
+
+/* ================================================================
+   LOGIN PAGE
+   ================================================================ */
+.login-body {
+    background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 40%, #4caf50 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.login-wrapper {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.login-card {
+    width: 100%;
+    background: #fff;
+    border-radius: 12px;
+    padding: 40px 36px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+
+.login-brand {
+    text-align: center;
+    margin-bottom: 28px;
+}
+
+.login-icon {
+    width: 72px;
+    height: 72px;
+    background: var(--primary-pale);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: var(--primary);
+    margin: 0 auto 12px;
+}
+
+.login-brand h2 {
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 4px;
+}
+
+.btn-login {
+    background: var(--primary);
+    border-color: var(--primary);
+    font-weight: 600;
+    padding: 10px;
+    color: #fff;
+}
+.btn-login:hover {
+    background: #1b5e20;
+    border-color: #1b5e20;
+    color: #fff;
+}
+
+.login-footer {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+/* ================================================================
+   RESPONSIVE — Tablet & Mobile
+   ================================================================ */
+
+/* ---- Collapsed sidebar (desktop only) ---- */
+@media (min-width: 769px) {
+    #wrapper.sidebar-collapsed #sidebar                        { width: 64px; }
+    #wrapper.sidebar-collapsed .sidebar-logo span,
+    #wrapper.sidebar-collapsed .sidebar-header small,
+    #wrapper.sidebar-collapsed .nav-section,
+    #wrapper.sidebar-collapsed .sidebar-user-info span,
+    #wrapper.sidebar-collapsed .sidebar-footer form,
+    #wrapper.sidebar-collapsed .sidebar-nav li a span,
+    #wrapper.sidebar-collapsed .sidebar-submenu,
+    #wrapper.sidebar-collapsed .submenu-chevron              { display: none !important; }
+    #wrapper.sidebar-collapsed #sidebar .sidebar-nav li a   { justify-content: center; padding: 10px; }
+}
+
+/* ---- Tablet (≤ 992px) ---- */
+@media (max-width: 992px) {
+    .main-content { padding: 16px; }
+
+    /* Make filter-tab rows scroll instead of wrap */
+    .nav.nav-tabs,
+    #billingTabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .nav.nav-tabs::-webkit-scrollbar,
+    #billingTabs::-webkit-scrollbar { display: none; }
+
+    /* Nav-tab buttons: keep text on one line */
+    .nav.nav-tabs .nav-link,
+    #billingTabs .nav-link { white-space: nowrap; }
+
+    /* Search bar: full width on tablet */
+    .card-header .input-group { max-width: 100% !important; }
+}
+
+/* ---- Mobile phone (≤ 768px) ---- */
+@media (max-width: 768px) {
+    /* --- Off-canvas sidebar drawer --- */
+    #sidebar {
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        width: var(--sidebar-w) !important;
+        transform: translateX(-100%);
+        z-index: 1050;
+        transition: transform 0.25s ease, width 0.25s ease;
+        height: 100dvh;
+    }
+
+    /* Show sidebar as overlay when toggle is clicked */
+    #wrapper.sidebar-collapsed #sidebar {
+        transform: translateX(0);
+    }
+
+    /* Restore all text labels inside the open mobile drawer */
+    #wrapper.sidebar-collapsed .sidebar-logo span,
+    #wrapper.sidebar-collapsed .sidebar-header small,
+    #wrapper.sidebar-collapsed .nav-section,
+    #wrapper.sidebar-collapsed .sidebar-user-info span,
+    #wrapper.sidebar-collapsed .sidebar-footer form,
+    #wrapper.sidebar-collapsed .sidebar-nav li a span,
+    #wrapper.sidebar-collapsed .submenu-chevron { display: unset !important; }
+    #wrapper.sidebar-collapsed #sidebar .sidebar-nav li a   { justify-content: flex-start; padding: 10px 20px; }
+
+    /* Dark backdrop behind the open drawer */
+    #wrapper.sidebar-collapsed::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1040;
+    }
+
+    /* Page content always takes full width (sidebar is fixed/off-flow) */
+    #page-content { width: 100%; }
+
+    /* Stack page-header row (title + action button) */
+    .main-content > .d-flex.justify-content-between {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 10px;
+    }
+    .main-content > .d-flex.justify-content-between .btn {
+        width: 100%;
+        text-align: center;
+    }
+
+    /* Tabs: scrollable, no wrap */
+    .nav.nav-tabs,
+    #billingTabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .nav.nav-tabs::-webkit-scrollbar,
+    #billingTabs::-webkit-scrollbar { display: none; }
+    .nav.nav-tabs .nav-link,
+    #billingTabs .nav-link { white-space: nowrap; font-size: 0.82rem; padding: 6px 10px; }
+
+    /* Search bar full-width */
+    .card-header .input-group { max-width: 100% !important; }
+
+    /* Reduce main padding */
+    .main-content { padding: 12px; }
+
+    /* Smaller stat-card value on mobile */
+    .stat-card__value { font-size: 1.4rem; }
+
+    /* Table font size reduction on mobile */
+    .table tbody td, .table thead th { font-size: 0.82rem; padding: 8px; }
+
+    /* Modal full-screen on mobile */
+    .modal-dialog { margin: 0.5rem; }
+    .modal-dialog.modal-lg { max-width: 100%; }
+
+    /* Top bar title smaller */
+    .top-bar-title { font-size: 0.92rem; }
+
+    /* Pagination center on mobile */
+    .card-footer.d-flex { flex-direction: column; align-items: center !important; gap: 8px; }
+}

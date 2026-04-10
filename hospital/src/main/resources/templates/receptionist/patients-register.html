@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <th:block th:replace="~{receptionist/fragments :: head('Register Patient')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{receptionist/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{receptionist/fragments :: topbar('Register Patient')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{receptionist/fragments :: alerts}"></th:block>
+
+            <!-- Search Bar + Register Button -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-8">
+                            <form th:action="@{/receptionist/patients/register}" method="get" class="d-flex gap-2">
+                                <input type="text" class="form-control" name="search"
+                                       placeholder="Search any patient by name, phone or national ID&hellip;"
+                                       th:value="${search}"/>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-search me-1"></i>Search
+                                </button>
+                                <a th:href="@{/receptionist/patients/register}" class="btn btn-outline-secondary">Clear</a>
+                            </form>
+                        </div>
+                        <div class="col-md-4 text-md-end">
+                            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#registerModal">
+                                <i class="bi bi-person-plus-fill me-2"></i>Register New Patient
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Results -->
+            <div th:if="${searchResults != null}" class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-search me-2"></i>Search Results
+                    <span class="badge bg-secondary ms-2" th:text="${totalPatients}">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Name</th>
+                                <th>National ID</th>
+                                <th>Phone</th>
+                                <th>Gender</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(searchResults)}">
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox fs-4 d-block mb-1"></i>No patients found matching your search.
+                                </td>
+                            </tr>
+                            <tr th:each="p, iter : ${searchResults}">
+                                <td class="text-muted small" th:text="${iter.count}"></td>
+                                <td>
+                                    <a th:href="@{/receptionist/patients/{id}(id=${p.id})}"
+                                       class="fw-semibold text-decoration-none"
+                                       th:text="${p.firstName + ' ' + p.lastName}">—</a>
+                                </td>
+                                <td th:text="${p.nationalId != null ? p.nationalId : '—'}">—</td>
+                                <td th:text="${p.phone}">—</td>
+                                <td th:text="${p.gender}">—</td>
+                                <td>
+                                    <span th:if="${p.active}" class="badge bg-success">Active</span>
+                                    <span th:unless="${p.active}" class="badge bg-secondary">Inactive</span>
+                                </td>
+                                <td>
+                                    <a th:href="@{/receptionist/patients/{id}(id=${p.id})}"
+                                       class="btn btn-sm btn-outline-primary me-1" title="View Profile">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <span th:if="${busyPatientIds.contains(p.id)}"
+                                          class="badge bg-warning text-dark" title="Currently receiving a service">
+                                        <i class="bi bi-hourglass-split me-1"></i>Active
+                                    </span>
+                                    <form th:unless="${busyPatientIds.contains(p.id)}"
+                                          th:action="@{/receptionist/patients/{id}/send-to-triage(id=${p.id})}" method="post" class="d-inline">
+                                        <input type="hidden" name="returnTo" value="register"/>
+                                        <button type="submit" class="btn btn-sm btn-outline-warning" title="Send to Triage">
+                                            <i class="bi bi-clipboard2-pulse"></i> Triage
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Pagination -->
+                <div th:if="${totalPages > 1}"
+                     class="card-footer bg-white d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 px-3">
+                    <small class="text-muted">
+                        Page <span th:text="${currentPage + 1}"></span> of <span th:text="${totalPages}"></span>
+                        &mdash; <span th:text="${totalPatients}"></span> result<span th:if="${totalPatients != 1}">s</span>
+                    </small>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                                <a class="page-link" th:href="@{/receptionist/patients/register(page=${currentPage - 1}, search=${search})}">&#8249;</a>
+                            </li>
+                            <th:block th:with="start=${T(java.lang.Math).max(0, currentPage - 2)}, end=${T(java.lang.Math).min(totalPages - 1, start + 4)}">
+                                <li class="page-item" th:each="i : ${#numbers.sequence(start, end)}"
+                                    th:classappend="${i == currentPage} ? 'active'">
+                                    <a class="page-link"
+                                       th:href="@{/receptionist/patients/register(page=${i}, search=${search})}"
+                                       th:text="${i + 1}">1</a>
+                                </li>
+                            </th:block>
+                            <li class="page-item" th:classappend="${currentPage >= totalPages - 1} ? 'disabled'">
+                                <a class="page-link" th:href="@{/receptionist/patients/register(page=${currentPage + 1}, search=${search})}">&#8250;</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Idle Patients (no active service) -->
+            <div th:if="${idlePatients != null}" class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-person-lines-fill me-2"></i>Patients Awaiting Service
+                    <span class="badge bg-secondary ms-2" th:text="${#lists.size(idlePatients)}">0</span>
+                    <small class="text-muted fw-normal ms-2">— registered patients not currently in any service</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Name</th>
+                                <th>National ID</th>
+                                <th>Phone</th>
+                                <th>Gender</th>
+                                <th>Registered</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:if="${#lists.isEmpty(idlePatients)}">
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="bi bi-check-circle fs-4 d-block mb-1"></i>
+                                    No patients awaiting service — all registered patients are currently receiving a service.
+                                </td>
+                            </tr>
+                            <tr th:each="p, iter : ${idlePatients}">
+                                <td class="text-muted small" th:text="${iter.count}"></td>
+                                <td>
+                                    <a th:href="@{/receptionist/patients/{id}(id=${p.id})}"
+                                       class="fw-semibold text-decoration-none"
+                                       th:text="${p.firstName + ' ' + p.lastName}">—</a>
+                                </td>
+                                <td th:text="${p.nationalId != null ? p.nationalId : '—'}">—</td>
+                                <td th:text="${p.phone}">—</td>
+                                <td th:text="${p.gender}">—</td>
+                                <td class="small"
+                                    th:text="${p.registrationDate != null ? #temporals.format(p.registrationDate, 'dd MMM yyyy') : '—'}">—</td>
+                                <td>
+                                    <a th:href="@{/receptionist/patients/{id}(id=${p.id})}"
+                                       class="btn btn-sm btn-outline-primary me-1" title="View Profile">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <form th:action="@{/receptionist/patients/{id}/send-to-triage(id=${p.id})}" method="post" class="d-inline">
+                                        <input type="hidden" name="returnTo" value="register"/>
+                                        <button type="submit" class="btn btn-sm btn-warning" title="Send to Triage">
+                                            <i class="bi bi-clipboard2-pulse me-1"></i>Send to Triage
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<!-- Register New Patient Modal -->
+<div class="modal fade" id="registerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" style="max-height: 90vh;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-plus-fill me-2"></i>Register New Patient</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="@{/receptionist/patients}" method="post">
+                <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+                    <h6 class="fw-semibold mb-3 text-muted">Personal Information</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">First Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="firstName" required/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Middle Name</label>
+                            <input type="text" class="form-control" name="middleName"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="lastName" required/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="dateOfBirth" required/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Gender <span class="text-danger">*</span></label>
+                            <select class="form-select" name="gender" required>
+                                <option value="">Select gender…</option>
+                                <option value="MALE">Male</option>
+                                <option value="FEMALE">Female</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Marital Status</label>
+                            <select class="form-select" name="maritalStatus">
+                                <option value="">— Select —</option>
+                                <option th:each="ms : ${maritalStatuses}" th:value="${ms}"
+                                        th:text="${#strings.capitalize(#strings.toLowerCase(ms.name()))}"></option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">National ID</label>
+                            <input type="text" class="form-control" name="nationalId"/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="phone" required/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email"/>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Occupation</label>
+                            <input type="text" class="form-control" name="occupation"
+                                   placeholder="e.g. Teacher, Engineer, Farmer"/>
+                        </div>
+                    </div>
+
+                    <hr class="my-3"/>
+                    <h6 class="fw-semibold mb-3 text-muted">Current Location</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Street</label>
+                            <input type="text" class="form-control" name="currentStreet" id="currentStreet"
+                                   placeholder="e.g. 12 Main Street"/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">City / Region</label>
+                            <input type="text" class="form-control" name="currentCity" id="currentCity"
+                                   placeholder="e.g. Harare"/>
+                        </div>
+                    </div>
+
+                    <hr class="my-3"/>
+                    <h6 class="fw-semibold mb-2 text-muted">Permanent Residence</h6>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="sameAsCurrent"/>
+                        <label class="form-check-label" for="sameAsCurrent">
+                            Same as current location
+                        </label>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Street</label>
+                            <input type="text" class="form-control" name="permStreet" id="permStreet"
+                                   placeholder="e.g. 12 Main Street"/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">City / Region</label>
+                            <input type="text" class="form-control" name="permCity" id="permCity"
+                                   placeholder="e.g. Harare"/>
+                        </div>
+                    </div>
+
+                    <hr class="my-3"/>
+                    <h6 class="fw-semibold mb-3 text-muted">Insurance Details <small class="text-muted fw-normal">(Optional)</small></h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Insurance Provider</label>
+                            <input type="text" class="form-control" name="insuranceProvider"
+                                   placeholder="e.g. NHIF, AAR, Jubilee"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Policy Number</label>
+                            <input type="text" class="form-control" name="insurancePolicyNumber"
+                                   placeholder="e.g. NHF-2024-001234"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Member Number</label>
+                            <input type="text" class="form-control" name="insuranceMemberNumber"
+                                   placeholder="e.g. MEM-56789"/>
+                        </div>
+                    </div>
+
+                    <hr class="my-3"/>
+                    <h6 class="fw-semibold mb-3 text-muted">Next of Kin <span class="text-danger">*</span></h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="nextOfKinFullName" id="nokFullName"
+                                   required placeholder="e.g. Jane Doe"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Relationship <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="nextOfKinRelationship"
+                                   required placeholder="e.g. Spouse, Parent"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Phone <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="nextOfKinPhone" id="nokPhone"
+                                   required placeholder="e.g. +263771234567"/>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-person-check-fill me-2"></i>Register Patient
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{receptionist/fragments :: scripts}"></th:block>
+
+<script>
+(function () {
+    // Auto-open modal on validation error
+    const openModal = /*[[${openRegisterModal}]]*/ false;
+    if (openModal) {
+        const modal = new bootstrap.Modal(document.getElementById('registerModal'));
+        modal.show();
+    }
+
+    // --- Same-as-current-location checkbox wiring ---
+    const checkbox      = document.getElementById('sameAsCurrent');
+    const currentStreet = document.getElementById('currentStreet');
+    const currentCity   = document.getElementById('currentCity');
+    const permStreet    = document.getElementById('permStreet');
+    const permCity      = document.getElementById('permCity');
+
+    function syncPerm() {
+        if (checkbox.checked) {
+            permStreet.value    = currentStreet.value;
+            permCity.value      = currentCity.value;
+            permStreet.disabled = true;
+            permCity.disabled   = true;
+        } else {
+            permStreet.disabled = false;
+            permCity.disabled   = false;
+        }
+    }
+
+    checkbox.addEventListener('change', function () {
+        if (!this.checked) {
+            permStreet.value = '';
+            permCity.value   = '';
+        }
+        syncPerm();
+    });
+
+    currentStreet.addEventListener('input', function () { if (checkbox.checked) permStreet.value = this.value; });
+    currentCity.addEventListener('input',   function () { if (checkbox.checked) permCity.value   = this.value; });
+
+    const registerForm = checkbox.closest('form');
+    if (registerForm) {
+        registerForm.addEventListener('submit', function (e) {
+            permStreet.disabled = false;
+            permCity.disabled   = false;
+
+            const patientPhone = registerForm.querySelector('[name="phone"]').value.trim();
+            const middleName   = registerForm.querySelector('[name="middleName"]').value.trim();
+            const patientName  = (registerForm.querySelector('[name="firstName"]').value.trim() +
+                                  (middleName ? ' ' + middleName : '') + ' ' +
+                                  registerForm.querySelector('[name="lastName"]').value.trim()).toLowerCase();
+            const nokPhone     = (document.getElementById('nokPhone')?.value || '').trim();
+            const nokName      = (document.getElementById('nokFullName')?.value || '').trim().toLowerCase();
+
+            if (nokPhone && nokPhone === patientPhone) {
+                e.preventDefault();
+                alert('Next of kin phone number cannot be the same as the patient\'s phone number.');
+                return;
+            }
+            if (nokName && nokName === patientName) {
+                e.preventDefault();
+                alert('Next of kin name cannot be the same as the patient\'s name.');
+            }
+        });
+    }
+})();
+</script>
+</body>
+</html>

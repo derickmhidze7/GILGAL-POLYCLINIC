@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <th:block th:replace="~{ward-nurse/fragments :: head('Create Surgery Order')}"></th:block>
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <th:block th:replace="~{ward-nurse/fragments :: sidebar}"></th:block>
+
+    <div id="page-content">
+        <th:block th:replace="~{ward-nurse/fragments :: topbar('Create Surgery Order')}"></th:block>
+
+        <main class="main-content">
+            <th:block th:replace="~{ward-nurse/fragments :: alerts}"></th:block>
+
+            <!-- Patient Header -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle bg-primary text-white d-flex align-items-center
+                                    justify-content-center fs-4 fw-bold"
+                             style="width:55px;height:55px;flex-shrink:0">
+                            <span th:text="${patient.firstName?.substring(0,1) + patient.lastName?.substring(0,1)}">AB</span>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 fw-bold" th:text="${patient.firstName + ' ' + patient.lastName}">Patient</h5>
+                            <small class="text-muted">
+                                ID: <span th:text="${patient.nationalId ?: '—'}">—</span> &nbsp;|&nbsp;
+                                Ward: <span th:text="${assignment.ward ?: 'N/A'}">—</span> &nbsp;|&nbsp;
+                                Bed: <span th:text="${assignment.bedNumber ?: 'N/A'}">—</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info Banner -->
+            <div class="alert alert-info d-flex align-items-center mb-4">
+                <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+                <span>The patient will <strong>remain admitted to the ward</strong> after this surgery order is created.</span>
+            </div>
+
+            <!-- Surgery Creation Form -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-semibold"><i class="bi bi-scissors me-2 text-primary"></i>New Surgery Order</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/ward-nurse/patients/{id}/surgery(id=${assignment.id})}" method="post">
+
+                        <div class="row g-3 mb-3">
+                            <!-- Procedure Name -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Procedure Name <span class="text-danger">*</span></label>
+                                <input type="hidden" name="servicePriceItemId" id="servicePriceItemId"/>
+                                <input type="text" name="procedureName" id="procedureName"
+                                       class="form-control" placeholder="Search or type procedure..."
+                                       list="procedureList" required autocomplete="off"/>
+                                <datalist id="procedureList">
+                                    <option th:each="p : ${procedures}"
+                                            th:value="${p.name()}"
+                                            th:attr="data-id=${p.id()}, data-price=${p.price()}">
+                                    </option>
+                                </datalist>
+                            </div>
+
+                            <!-- Surgery Type -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Surgery Type</label>
+                                <select name="surgeryType" class="form-select">
+                                    <option value="GENERAL">General</option>
+                                    <option value="ORTHOPAEDIC">Orthopaedic</option>
+                                    <option value="CARDIAC">Cardiac</option>
+                                    <option value="GYNAECOLOGICAL">Gynaecological</option>
+                                    <option value="NEUROLOGICAL">Neurological</option>
+                                    <option value="OPHTHALMIC">Ophthalmic</option>
+                                    <option value="ENT">ENT</option>
+                                    <option value="UROLOGY">Urology</option>
+                                </select>
+                            </div>
+
+                            <!-- Urgency -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Urgency <span class="text-danger">*</span></label>
+                                <select name="urgency" class="form-select" required>
+                                    <option th:each="u : ${urgencyValues}"
+                                            th:value="${u}"
+                                            th:text="${u}">URGENCY</option>
+                                </select>
+                            </div>
+
+                            <!-- Anesthesia Type -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Anesthesia Type</label>
+                                <select name="anesthesiaType" class="form-select">
+                                    <option value="">— Select —</option>
+                                    <option th:each="a : ${anesthesiaValues}"
+                                            th:value="${a}"
+                                            th:text="${a}">TYPE</option>
+                                </select>
+                            </div>
+
+                            <!-- Price -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Price (TZS)</label>
+                                <input type="number" name="price" id="price"
+                                       class="form-control" min="0" step="0.01" placeholder="0.00"/>
+                            </div>
+
+                            <!-- Scheduled Date -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Scheduled Date &amp; Time</label>
+                                <input type="datetime-local" name="scheduledDate" class="form-control"/>
+                            </div>
+
+                            <!-- Operating Theater -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Operating Theater</label>
+                                <input type="text" name="operatingTheater" class="form-control"
+                                       placeholder="e.g. Theater 1"/>
+                            </div>
+
+                            <!-- Estimated Duration -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Est. Duration (min)</label>
+                                <input type="number" name="estimatedDurationMinutes"
+                                       class="form-control" min="15" placeholder="60"/>
+                            </div>
+
+                            <!-- Pre-op Notes -->
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Pre-op Notes</label>
+                                <textarea name="preopNotes" class="form-control" rows="3"
+                                          placeholder="Pre-operative instructions or notes..."></textarea>
+                            </div>
+
+                            <!-- Assign Nurses -->
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Assign Nursing Team</label>
+                                <div class="row g-2">
+                                    <div th:if="${availableNurses.empty}" class="col-12 text-muted small">
+                                        No nurses available.
+                                    </div>
+                                    <div th:each="n : ${availableNurses}" class="col-md-4 col-sm-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox"
+                                                   name="nurseIds" th:value="${n.id()}"
+                                                   th:id="'nurse_' + ${n.id()}"/>
+                                            <label class="form-check-label"
+                                                   th:for="'nurse_' + ${n.id()}"
+                                                   th:text="${n.name() + ' (' + n.role() + ')'}">Nurse</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Consent Obtained -->
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox"
+                                           name="consentObtained" value="true" id="consentObtained"/>
+                                    <label class="form-check-label" for="consentObtained">
+                                        Patient consent obtained
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-scissors me-1"></i>Create Surgery Order
+                            </button>
+                            <a th:href="@{/ward-nurse/patients/{id}/care(id=${assignment.id})}"
+                               class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    // Auto-fill price from procedure datalist selection
+    document.getElementById('procedureName').addEventListener('change', function () {
+        const val = this.value;
+        const options = document.querySelectorAll('#procedureList option');
+        options.forEach(opt => {
+            if (opt.value === val) {
+                const pid = opt.getAttribute('data-id');
+                const pprice = opt.getAttribute('data-price');
+                if (pid) document.getElementById('servicePriceItemId').value = pid;
+                if (pprice) document.getElementById('price').value = pprice;
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
