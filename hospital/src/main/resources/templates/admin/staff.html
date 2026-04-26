@@ -78,8 +78,8 @@
                                 <td th:text="${s.email}">email</td>
                                 <td>
                                     <span class="badge role-badge"
-                                          th:classappend="${'role-' + s.staffRole.name().toLowerCase()}"
-                                          th:text="${s.staffRole.name().replace('_',' ')}">ROLE</span>
+                                          th:classappend="${s.staffRole != null ? 'role-' + s.staffRole.name().toLowerCase() : ''}"
+                                          th:text="${s.staffRole != null ? s.staffRole.name().replace('_',' ') : '—'}">ROLE</span>
                                 </td>
                                 <td th:text="${s.specialization != null ? s.specialization : '—'}">—</td>
                                 <td th:text="${s.departmentName != null ? s.departmentName : '—'}">—</td>
@@ -103,7 +103,7 @@
                                                     data-lastname=${s.lastName},
                                                     data-email=${s.email},
                                                     data-phone=${s.phone},
-                                                    data-role=${s.staffRole.name()},
+                                                    data-role=${s.staffRole != null ? s.staffRole.name() : ''},
                                                     data-specialization=${s.specialization},
                                                     data-license=${s.licenseNumber}"
                                                 data-bs-toggle="modal" data-bs-target="#editStaffModal"

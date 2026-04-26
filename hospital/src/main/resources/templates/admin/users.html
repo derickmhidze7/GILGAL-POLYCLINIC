@@ -201,7 +201,7 @@
                             <option value="">— Not linked to staff —</option>
                             <option th:each="s : ${staffList}"
                                     th:value="${s.id}"
-                                    th:text="${s.firstName + ' ' + s.lastName + ' (' + s.staffRole.name().replace('_',' ') + ')'}">
+                                    th:text="${s.firstName + ' ' + s.lastName + (s.staffRole != null ? ' (' + s.staffRole.name().replace('_',' ') + ')' : '')}">
                                 Staff Member
                             </option>
                         </select>
