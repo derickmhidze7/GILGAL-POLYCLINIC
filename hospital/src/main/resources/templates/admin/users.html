@@ -58,7 +58,7 @@
                                 <td class="ps-3 text-muted small" th:text="${stat.count}">1</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        <span class="avatar-circle" th:text="${user.username.substring(0,1).toUpperCase()}">A</span>
+                                        <span class="avatar-circle" th:text="${!#strings.isEmpty(user.username) ? user.username.substring(0,1).toUpperCase() : '?'}">A</span>
                                         <strong th:text="${user.username}">username</strong>
                                     </div>
                                 </td>
