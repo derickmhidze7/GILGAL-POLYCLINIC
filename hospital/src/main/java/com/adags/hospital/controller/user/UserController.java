@@ -29,7 +29,7 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Page<UserResponse>> getAll(
             @PageableDefault(size = 20, sort = "username") Pageable pageable) {
-        return ResponseEntity.ok(userService.getAll(pageable).map(UserResponse::from));
+        return ResponseEntity.ok(userService.getAll(pageable));
     }
 
     @GetMapping("/{id}")
