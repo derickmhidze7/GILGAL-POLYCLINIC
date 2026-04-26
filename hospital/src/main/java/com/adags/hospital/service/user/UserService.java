@@ -7,6 +7,7 @@ import com.adags.hospital.domain.user.Role;
 import com.adags.hospital.dto.user.ChangePasswordRequest;
 import com.adags.hospital.dto.user.CreateNurseRequest;
 import com.adags.hospital.dto.user.CreateUserRequest;
+import com.adags.hospital.dto.user.UserResponse;
 import com.adags.hospital.exception.BusinessRuleException;
 import com.adags.hospital.exception.DuplicateResourceException;
 import com.adags.hospital.exception.ResourceNotFoundException;
@@ -32,8 +33,8 @@ public class UserService {
     private final DepartmentRepository departmentRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public Page<AppUser> getAll(Pageable pageable) {
-        return userRepository.findAll(pageable);
+    public Page<UserResponse> getAll(Pageable pageable) {
+        return userRepository.findAll(pageable).map(UserResponse::from);
     }
 
     public AppUser getById(UUID id) {

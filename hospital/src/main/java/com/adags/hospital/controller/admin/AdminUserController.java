@@ -1,6 +1,5 @@
 package com.adags.hospital.controller.admin;
 
-import com.adags.hospital.domain.user.AppUser;
 import com.adags.hospital.domain.user.Role;
 import com.adags.hospital.dto.staff.StaffResponse;
 import com.adags.hospital.dto.user.CreateUserRequest;
@@ -31,10 +30,10 @@ public class AdminUserController {
 
     @GetMapping
     public String list(@RequestParam(defaultValue = "0") int page, Model model) {
-        Page<AppUser> usersPage = userService.getAll(
+        Page<UserResponse> usersPage = userService.getAll(
                 PageRequest.of(page, 20, Sort.by("username"))
         );
-        List<UserResponse> users = usersPage.map(UserResponse::from).getContent();
+        List<UserResponse> users = usersPage.getContent();
 
         List<StaffResponse> staffList = staffService.getAll(
                 PageRequest.of(0, 200, Sort.by("lastName"))).getContent();
